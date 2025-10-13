@@ -1,0 +1,14 @@
+<sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+    <sitemap>
+        <loc>https://www.lalpathlabs.com/test/sitemap-test-agra.xml</loc>
+        <lastmod>2024-06-22</lastmod>
+    </sitemap>
+    <sitemap>
+        <loc>https://www.lalpathlabs.com/test/sitemap-test-bengaluru.xml</loc>
+        <lastmod>2024-06-22</lastmod>
+    </sitemap>
+    <sitemap>
+        <loc>https://www.lalpathlabs.com/test/sitemap-test-chennai.xml</loc>
+        <lastmod>2024-06-22</lastmod>
+    </sitemap>
+</sitemapindex>

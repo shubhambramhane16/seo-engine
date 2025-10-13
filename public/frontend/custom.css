@@ -1,0 +1,231 @@
+button,
+input,
+select,
+textarea {
+    font-family: inherit;
+    font-size: inherit;
+    line-height: inherit;
+    border-radius: 0px;
+    height: 32px;
+    padding: 5px;
+    border: 1px solid #9c9c9c;
+}
+
+.form-control {
+    display: block;
+    width: 100%;
+    padding: .5rem .75rem;
+    font-size: 1rem;
+    line-height: 1.25;
+    color: #495057;
+    background-color: #fff;
+    background-image: none;
+    background-clip: padding-box;
+    border: 1px solid rgba(0, 0, 0, .15);
+    border-radius: .25rem;
+    transition: border-color ease-in-out .15s, box-shadow ease-in-out .15s;
+    box-shadow: none;
+}
+
+.first input {
+    width: 40%;
+}
+
+label {
+    display: inline-block;
+    max-width: 100%;
+    margin-bottom: 7px;
+    font-weight: 600;
+    margin-right: 21px;
+    margin-top: 12px;
+}
+
+.search-form {
+    margin: 40px auto;
+}
+
+.content {
+    margin-top: 41px;
+}
+
+.search-form button {
+    margin-top: 18px;
+    margin-right: 12px;
+    padding: 8px 20px;
+    height: auto;
+    font-size: 15px;
+    border-radius: 0px;
+}
+
+.search-form button {
+    margin-top: 18px;
+    margin-right: 12px;
+    padding: 8px 20px;
+    height: auto;
+    font-size: 15px;
+}
+
+select.form-control {
+    font-size: 13.4px;
+    color: #737373;
+}
+
+h3.headingmy {
+    margin-top: 55px;
+    font-size: 20px;
+    color: #164982;
+    font-weight: 600;
+    padding-bottom: 11px;
+    border-bottom: 2px dotted #84a4c7;
+}
+
+.search-form {
+    margin: 40px auto;
+    border: 2px solid #5e89b978;
+    padding: 40px;
+    position: relative;
+    border-radius: 5px;
+}
+
+.search-form span.am {
+    position: absolute;
+    top: -20px;
+    background: #094588;
+    color: #fff214;
+    font-size: 15px;
+    font-family: inherit;
+    border-radius: 5px;
+    font-weight: 600;
+    padding: 8px 20px;
+}
+
+.btn.active.focus,
+.btn.active:focus,
+.btn.focus,
+.btn:active.focus,
+.btn:active:focus,
+.btn:focus {
+    outline: none;
+    outline-offset: initial;
+}
+
+.search-form button:first-child {
+    background: #164982;
+    color: #fff;
+}
+
+.search-form button:last-child {
+    background: #067bd8;
+    color: #fff;
+}
+
+.content ul li {
+    list-style: disc;
+    margin-left: 15px;
+    font-size: 16px;
+    font-family: inherit;
+}
+
+.content b {
+    margin-bottom: 9px;
+    font-size: 16px;
+    display: block;
+}
+
+.test_div {
+    padding: 5px 10px;
+    border: 1px solid #f5f2f2;
+    border-radius: 5px;
+    box-shadow: 2px 2px 4px #ddd;
+    font-size: 14px;
+    margin-bottom: 15px;
+    cursor: pointer;
+    transition: .5s;
+}
+
+.test_div:hover {
+    padding: 5px 10px;
+    border: 1px solid #f5f2f2;
+    border-radius: 5px;
+    box-shadow: 2px 4px 8px #ddd;
+    font-size: 14px;
+    margin-bottom: 15px;
+    cursor: pointer;
+    transition: .5s;
+}
+
+.view-details {
+    text-align: right;
+}
+
+.test-label {
+    font-size: 13px;
+    border-bottom: 1px dashed #ddd;
+    margin-bottom: 3px;
+    width: max-content;
+}
+
+table.table {
+    border: 1px solid #ddd;
+    border-radius: 10px;
+}
+
+.whatsapp-icon {
+    float: right;
+    font-size: 20px;
+    color: rgb(0, 230, 118);
+}
+
+.whatsapp-icon:hover,
+.whatsapp-icon:after {
+    float: right;
+    font-size: 20px;
+    color: rgb(0, 230, 118);
+}
+
+.search-head h3 {
+    font-weight: 700;
+    border-bottom: 1px dashed #ddd;
+    width: max-content;
+}
+
+.search-head {
+    margin-top: 20px;
+    margin-bottom: 5px;
+}
+
+.mytbl.row {
+    margin-top: 15px;
+}
+
+.row1 {
+    margin-bottom: 6px;
+}
+
+
+
+
+
+
+
+/* .fade.in {
+    opacity: 1 !important;
+    background: rgb(0 0 0 / 10%);
+    transition: 0;
+} */
+
+@media only screen and (max-width: 900px) {
+    .first input {
+        width: 100%;
+    }
+    .content ul li {
+        font-size: 15px;
+        text-align: justify;
+    }
+    .search-form {
+        padding: 20px;
+    }
+    .mpr-0 {
+        padding-right: 0;
+    }
+}

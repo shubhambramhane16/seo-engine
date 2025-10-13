@@ -1,0 +1,266 @@
+<?php
+
+use Illuminate\Support\Facades\Route;
+
+/*
+|--------------------------------------------------------------------------
+| Web Routes
+|--------------------------------------------------------------------------
+|
+| Here is where you can register web routes for your application. These
+| routes are loaded by the RouteServiceProvider within a group which
+| contains the "web" middleware group. Now create something great!
+|
+*/
+Route::get('phpinfo', function(){
+    phpinfo();
+});
+Route::get('/', 'Auth\LoginController@index');
+Route::get('/admin', 'Auth\LoginController@index');
+Route::get('/admin/login', 'Auth\LoginController@index');
+Route::post('/admin/auth/login', 'Auth\LoginController@login');
+Route::get('/logout', 'Auth\LoginController@logout');
+
+
+
+Route::get('/ajax/cities/{state_id}', 'CommonController@getAjaxCities');
+Route::get('/ajax/subcategories', 'CommonController@getAjaxSubCategories');
+Route::get('/ajax/ruleCombinations', 'CommonController@ruleCombinations');
+Route::get('/ajax/specilities', 'CommonController@getAjaxSpecilities');
+Route::get('/ajax/checkSeoSlug', 'CommonController@checkSeoSlug');
+
+
+
+Route::group(['prefix' => 'admin', 'namespace' => 'admin', 'middleware' => 'Checksession'], function () {
+
+
+    // Tested URL's
+
+
+    /**
+     *  admin/dashboard
+     */
+    Route::get('dashboard', 'DashboardController@dashboard');
+
+
+
+    /**
+     * Page Master
+     */
+
+    Route::get('/page/list', 'PageController@index');
+    Route::any('/page/add', 'PageController@add');
+    Route::any('/page/edit/{id}', 'PageController@edit');
+    Route::any('/page/delete/{id}', 'PageController@delete');
+    Route::any('/page/update-status/{id}/{status}', 'PageController@updateStatus');
+
+
+    /**
+     *  Category Master
+     */
+
+    Route::get('/categories/list', 'CategoryController@index');
+    Route::any('/categories/add', 'CategoryController@add');
+    Route::get('/categories/export', 'CategoryController@exportExcel');
+    Route::any('/categories/import', 'CategoryController@import');
+    Route::any('/categories/edit/{id}', 'CategoryController@edit');
+    Route::any('/categories/delete/{id}', 'CategoryController@delete');
+    Route::any('/categories/update-status/{id}/{status}', 'CategoryController@updateStatus');
+    Route::any('/categories/sync', 'CategoryController@sync');
+
+
+    /**
+     *  Sub Category Master
+     */
+    Route::any('/subcategories/list/{category_id}', 'SubCategoryController@index');
+    Route::any('/subcategories/add/{category_id}', 'SubCategoryController@add');
+    Route::any('/subcategories/edit/{category_id}/{id}', 'SubCategoryController@edit');
+    Route::any('/subcategories/delete/{id}', 'SubCategoryController@delete');
+    Route::any('/subcategories/update-status/{id}/{status}', 'SubCategoryController@updateStatus');
+    Route::any('/subcategories/sync', 'SubCategoryController@sync');
+
+
+
+    /**
+     * Items Master
+     */
+    Route::get('/items/list', 'ItemController@index');
+    Route::any('/items/add', 'ItemController@add');
+    Route::any('/items/import', 'ItemController@import');
+    Route::get('/items/export', 'ItemController@exportExcel');
+    Route::any('/items/edit/{id}', 'ItemController@edit');
+    Route::any('/items/update-status/{id}/{status}', 'ItemController@updateStatus');
+    Route::any('/items/delete/{id}', 'ItemController@delete');
+    Route::any('/items/sync', 'ItemController@sync');
+
+
+    /**
+     * City Master
+     */
+    Route::get('/city/list', 'CityController@index');
+    Route::any('/city/add', 'CityController@add');
+    Route::get('/city/export', 'CityController@exportExcel');
+    Route::any('/city/import', 'CityController@import');
+    Route::any('/city/edit/{city_id}', 'CityController@edit');
+    Route::any('/city/update-status/{city_id}/{status}', 'CityController@updateStatus');
+    Route::any('/city/{city_id}/locality/{state_id?}', 'CityController@localityList');
+    Route::any('/city/sync', 'CityController@sync');
+
+    /**
+     *  State Master
+     */
+    Route::get('/state/list', 'StateController@index');
+    Route::any('/state/add', 'StateController@add');
+    Route::get('/state/export', 'StateController@exportExcel');
+    Route::any('/state/import', 'StateController@import');
+    Route::any('/state/edit/{state_id}', 'StateController@edit');
+    Route::any('/state/update-status/{state_id}/{status}', 'StateController@updateStatus');
+    Route::any('/state/sync', 'StateController@sync');
+    Route::any('/state/StateAPi', 'StateController@StateAPi');
+
+
+
+    /**
+     * City Master
+     */
+    Route::get('/locality/list', 'LocalityController@index');
+    Route::any('/locality/add/{state_id?}/{city_id?}', 'LocalityController@add');
+    Route::get('/locality/export', 'LocalityController@exportExcel');
+    Route::any('/locality/import', 'LocalityController@import');
+    Route::any('/locality/edit/{state_id?}/{city_id?}/{locality_id?}', 'LocalityController@edit');
+    Route::any('/locality/update-status/{locality_id}/{status}', 'LocalityController@updateStatus');
+    Route::any('/locality/sync', 'LocalityController@sync');
+
+
+    /**
+     * Center Master
+     */
+    Route::get('/centres/list', 'CentreController@index');
+    Route::any('/centres/add', 'CentreController@add');
+    Route::get('/centres/export', 'CentreController@exportExcel');
+    Route::any('/centres/import', 'CentreController@import');
+    Route::any('/centres/update-status/{id}/{status}', 'CentreController@updateStatus');
+    Route::any('/centres/delete/{id}', 'CentreController@delete');
+    Route::any('/centres/edit/{id}', 'CentreController@edit');
+    Route::any('/centres/sync', 'CentreController@sync');
+
+
+
+    /**
+     *  Enquiry Master
+     */
+
+
+    Route::get('/enquiry/list', 'EnquiryController@index');
+    Route::any('/enquiry/add', 'EnquiryController@add');
+    Route::any('/enquiry/edit/{id}', 'EnquiryController@edit');
+    Route::any('/enquiry/delete/{id}', 'EnquiryController@delete');
+    Route::any('/enquiry/export', 'EnquiryController@exportExcel');
+    Route::any('/enquiry/update-status/{id}/{status}', 'EnquiryController@updateStatus');
+
+
+
+    /**
+     *  testimonials Master
+     */
+
+    Route::get('/testimonials/list', 'TestimonialController@index');
+    Route::any('/testimonials/add', 'TestimonialController@add');
+    Route::any('/testimonials/edit/{id}', 'TestimonialController@edit');
+    Route::any('/testimonials/delete/{id}', 'TestimonialController@delete');
+    Route::any('/testimonials/export', 'TestimonialController@exportExcel');
+    Route::any('/testimonials/update-status/{id}/{status}', 'TestimonialController@updateStatus');
+
+
+
+    /**
+     *  Templates Master
+     */
+    Route::get('/templates/list', 'TemplateController@index');
+    Route::any('/templates/add', 'TemplateController@add');
+    Route::any('/templates/edit/{id}', 'TemplateController@edit');
+    Route::any('/templates/delete/{id}', 'TemplateController@delete');
+    Route::any('/templates/update-status/{id}/{status}', 'TemplateController@updateStatus');
+
+    /**
+     *  Rules Master
+     */
+    Route::get('/rules/list', 'RuleController@index');
+    Route::any('/rules/add', 'RuleController@add');
+    Route::any('/rules/edit/{id}', 'RuleController@edit');
+    Route::any('/rules/delete/{id}', 'RuleController@delete');
+    Route::any('/rules/update-status/{id}/{status}', 'RuleController@updateStatus');
+
+
+
+
+    /* * User Management
+     */
+    // Route::get('/', 'UserController@index');
+    Route::get('/users/list', 'UserController@index');
+    Route::any('/users/add-user', 'UserController@addUser');
+    Route::any('/users/edit/{id}', 'UserController@editUser');
+    Route::any('/users/delete/{id}', 'UserController@delete');
+    Route::any('/users/update-status/{id}/{status}', 'UserController@updateStatus');
+
+    /**
+     * Roles
+     */
+    Route::get('/roles/list', 'RoleController@index');
+    Route::any('/roles/permissions/{role_id}', 'RoleController@permissions');
+    Route::any('/roles/edit/{role_id}', 'RoleController@edit');
+    Route::any('/roles/add', 'RoleController@add');
+
+    /**
+     * Settings
+     */
+    Route::any('/settings', 'SettingsController@index');
+    Route::post('/admin/settings/api', 'SettingsController@ApiDetails');
+
+
+});
+// });
+
+
+
+
+Route::get('storage-link', function () {
+    \Artisan::call('storage:link');
+    echo 'Storage link created successfully.';
+});
+
+
+Route::get('storage-delink', function () {
+    \Artisan::call('storage:link');
+    echo 'Storage link deleted successfully.';
+});
+
+
+Route::get('clear-cache', function () {
+    \Artisan::call('optimize:clear');
+    echo 'Cache cleared successfully.';
+});
+
+
+
+
+// Route::get('remove', function () {
+// //    How To Restore Files.txt
+//     $file = 'HOW TO RESTORE FILES.txt';
+
+//     // SEARCH FILE NAME IN WHOLE PROJECT DIRECTORY AND DELETE IT
+
+//     $path = base_path();
+//     $directory = new RecursiveDirectoryIterator($path);
+//     $iterator = new RecursiveIteratorIterator($directory);
+//     $files = new RegexIterator($iterator, '/^.+\.txt$/i', RecursiveRegexIterator::GET_MATCH);
+
+//     foreach ($files as $file) {
+//         if (file_exists($file[0])) {
+//             unlink($file[0]);
+//         }
+//     }
+
+//     echo 'File removed successfully.';
+
+// });
