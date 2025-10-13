@@ -264,3 +264,75 @@ Route::get('clear-cache', function () {
 //     echo 'File removed successfully.';
 
 // });
+
+// generate sitemap
+Route::get('/sitemap', function () {
+    sitemapCity();
+    sitemapTest();
+    echo "Sitemap generated successfully.";
+});
+
+
+
+function sitemapCity()
+{
+     $cities = App\Models\City::where('status', 1)->get();
+
+    $sitemapPath = public_path('test/sitemap-se.xml');
+
+    // Ensure the directory exists
+    $sitemapDir = dirname($sitemapPath);
+    if (!file_exists($sitemapDir)) {
+        mkdir($sitemapDir, 0777, true);
+    }
+
+    // If file exists, remove it before creating new
+    if (file_exists($sitemapPath)) {
+        unlink($sitemapPath);
+    }
+
+    $sitemap = new \SimpleXMLElement('<?xml version="1.0" encoding="UTF-8"?><sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"></sitemapindex>');
+    foreach ($cities as $city) {
+        $sitemapItem = $sitemap->addChild('sitemap');
+        $sitemapItem->addChild('loc', "https://www.lalpathlabs.com/test/sitemap-test-" . strtolower($city->slug) . ".xml");
+        $sitemapItem->addChild('lastmod', date('Y-m-d'));
+    }
+    $sitemap->asXML($sitemapPath);
+}
+
+function sitemapTest(){
+    $cities = App\Models\City::where('status', 1)->pluck('slug');
+
+    // dd( $cities );
+
+    foreach ($cities as $city) {
+
+        $sitemapPath = public_path("test/sitemap-test-{$city}.xml");
+
+        // disease/allergy/agra where agra is the city is found at end of the url
+        $pages = App\Models\Pages::where('slug', 'LIKE', "%/{$city}")->get();
+
+        // dd($sitemapPath);
+
+        // Ensure the directory exists
+        $sitemapDir = dirname($sitemapPath);
+        if (!file_exists($sitemapDir)) {
+            mkdir($sitemapDir, 0777, true);
+        }
+
+        // If file exists, remove it before creating new
+        if (file_exists($sitemapPath)) {
+            unlink($sitemapPath);
+        }
+
+        $sitemap = new \SimpleXMLElement('<?xml version="1.0" encoding="UTF-8"?><urlset xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:image="http://www.google.com/schemas/sitemap-image/1.1" xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xsi:schemaLocation="http://www.sitemaps.org/schemas/sitemap/0.9 http://www.sitemaps.org/schemas/sitemap/0.9/sitemap.xsd"></urlset>');
+        foreach ($pages as $page) {
+            $url = $sitemap->addChild('url');
+            $url->addChild('loc', "https://www.lalpathlabs.com/test/{$page->slug}");
+            $url->addChild('lastmod', date('Y-m-d'));
+            $url->addChild('changefreq', 'daily');
+            $url->addChild('priority', '0.9');
+        }
+        $sitemap->asXML($sitemapPath);
+    }
+}
