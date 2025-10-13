@@ -278,7 +278,8 @@ function sitemapCity()
 {
      $cities = App\Models\City::where('status', 1)->get();
 
-    $sitemapPath = public_path('test/sitemap-se.xml');
+    // $sitemapPath = public_path('test/sitemap-se.xml');
+    $sitemapPath = base_path('test/sitemap-se.xml');
 
     // Ensure the directory exists
     $sitemapDir = dirname($sitemapPath);
@@ -307,7 +308,8 @@ function sitemapTest(){
 
     foreach ($cities as $city) {
 
-        $sitemapPath = public_path("test/sitemap-test-{$city}.xml");
+        // $sitemapPath = public_path("test/sitemap-test-{$city}.xml");
+        $sitemapPath = base_path("test/sitemap-test-{$city}.xml");
 
         // disease/allergy/agra where agra is the city is found at end of the url
         $pages = App\Models\Pages::where('slug', 'LIKE', "%/{$city}")->get();
