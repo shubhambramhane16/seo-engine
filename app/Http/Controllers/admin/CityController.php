@@ -71,7 +71,7 @@ class CityController extends Controller
                     'name' => $request->name,
                     'local_schema_markup' => $request->local_schema_markup,
                     'country_id' => 1,
-                    'slug' => \Str::slug($state[1] . ' ' . $request->name),
+                    'slug' => \Str::slug($request->name),
                     'description' => $request->description,
                 ];
                 if (!City::where('slug', $insertArr['slug'])->exists()) {
@@ -121,7 +121,7 @@ class CityController extends Controller
                     $updateArr = [
                         'state_id' => $state[0],
                         'state_name' => $state[1],
-                        'slug' => \Str::slug($state[1] . ' ' . $request->name),
+                        'slug' => \Str::slug($request->name),
                         'name' => $request->name,
                         'local_schema_markup' => $request->local_schema_markup,
                         'description' => $request->description,
