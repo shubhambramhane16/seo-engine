@@ -53,6 +53,8 @@ class PageController extends Controller
         try {
             if ($request->isMethod('post')) {
                 // dd($request->all());
+                set_time_limit(0);
+                ini_set('memory_limit', '-1');
                 $validator = Validator::make($request->all(), [
                     'rule_id' => 'required',
                     'number_of_combination' => 'required',

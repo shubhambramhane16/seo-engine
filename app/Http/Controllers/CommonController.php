@@ -51,58 +51,54 @@ class CommonController extends Controller
     public function ruleCombinations(){
 
         $ruleId = request('ruleId');
-        if($ruleId){
+        if ($ruleId) {
             $rule = Rules::find($ruleId);
-            if($rule){
-                $properties = json_decode($rule->properties);
-                $counts = [
-                    'city' => 1,
-                    'locality' => 1,
-                    'category' => 1,
-                    'item' => 1,
-                ];
-                $count=0;
-                foreach ($properties as $property) {
-                    if (array_key_exists($property, $counts)) {
-                        switch ($property) {
-                            case 'city':
-                                $count = City::where('status', 1)->where('slug' , '!=','')->count();
-                                break;
-                            case 'locality':
-                                $count = Locality::where('status', 1)->where('slug' , '!=','')->count();
-                                break;
-                            case 'category':
-                                $count = Category::where('status', 1)->where('category_name' , '!=','')->count();
-                                break;
-                            case 'item':
-                                $count = Tests::where('status', 1)->where('slug' , '!=','')->count();
-                                break;
-                        }
-                    }
-                }
-                
-                // foreach ($properties as $property) {
-                //     if (array_key_exists($property, $counts)) {
-                //         switch ($property) {
-                //             case 'city':
-                //                 $counts['city'] = City::where('status', 1)->where('slug' , '!=','')->count();
-                //                 break;
-                //             case 'locality':
-                //                 $counts['locality'] = Locality::where('status', 1)->where('slug' , '!=','')->count();
-                //                 break;
-                //             case 'category':
-                //                 $counts['category'] = Category::where('status', 1)->where('category_name' , '!=','')->count();
-                //                 break;
-                //             case 'item':
-                //                 $counts['item'] = Tests::where('status', 1)->where('slug' , '!=','')->count();
-                //                 break;
-                //         }
-                //     }
-                // }
-                // $data = array_product($counts);
-                $data = $count;
+            if ($rule && $rule->properties) {
+            $properties = json_decode($rule->properties);
 
-                return $data;
+            // map properties to models (support both "city" and "city-name" styles)
+            $models = [];
+            foreach ($properties as $property) {
+                if (in_array($property, ['city', 'city-name'])) {
+                $models[] = City::class;
+                } elseif (in_array($property, ['locality', 'locality-name'])) {
+                $models[] = Locality::class;
+                } elseif (in_array($property, ['category', 'category-name'])) {
+                $models[] = Category::class;
+                } elseif (in_array($property, ['item', 'item-name'])) {
+                $models[] = Tests::class;
+                }
+            }
+
+            // gather counts for each selected model
+            $counts = [];
+            foreach ($models as $model) {
+                if ($model === Category::class) {
+                // count only child categories with a name
+                $counts[] = Category::where('status', 1)
+                    ->where('parent_id', '!=', 0)
+                    ->where('category_name', '!=', '')
+                    ->count();
+                } elseif ($model === City::class) {
+                $counts[] = City::where('status', 1)->where('slug', '!=', '')->count();
+                } elseif ($model === Locality::class) {
+                $counts[] = Locality::where('status', 1)->where('slug', '!=', '')->count();
+                } else { // Tests (items)
+                $counts[] = Tests::where('status', 1)->where('slug', '!=', '')->count();
+                }
+            }
+
+            // compute product of counts (total possible combinations)
+            $product = 1;
+            if (count($counts) === 0) {
+                $product = 0;
+            } else {
+                foreach ($counts as $c) {
+                $product *= (int) $c;
+                }
+            }
+
+            return $product;
             }
         }
 
