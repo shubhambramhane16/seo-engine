@@ -15,15 +15,15 @@
                 <i class="la la-plus"></i>Generator</a>
             <!--end::Button-->
         </div>
-        <form action="" method="get" class="w-100">
+        <div class="w-100">
             <div class="row col-lg-12 pl-0 pr-0">
                 <div class="col-sm-3">
                     <div class="dataTables_length">
                         <label>Status</label>
-                        <select name="status" value="" class="form-control">
+                        <select id="statusFilter" class="form-control">
                             <option value="-1">All Status</option>
-                            <option value="0" @if(request('status')=='0' ) {{runTimeSelection(0, request('status'))}} @endif>InActive</option>
-                            <option value="1" @if(request('status')=='1' ) {{runTimeSelection(1, request('status'))}} @endif>Active</option>
+                            <option value="0">InActive</option>
+                            <option value="1">Active</option>
                         </select>
                     </div>
                 </div>
@@ -31,13 +31,13 @@
                 <div class="col-sm-5">
                     <div class="dataTables_length">
                         <label cla>&#160; </label>
-                        <button type="submit" class="btn btn-success" data-toggle="tooltip" title="Apply Filter" style="margin-top: 20px;">Filter</button>
-                        <a href="{{url('admin/page/list')}}" class="btn btn-default" data-toggle="tooltip" title="Reset Filter" style="margin-top: 20px;">Reset</a>
+                        <button type="button" id="applyFilter" class="btn btn-success" data-toggle="tooltip" title="Apply Filter" style="margin-top: 20px;">Filter</button>
+                        <button type="button" id="resetFilter" class="btn btn-default" data-toggle="tooltip" title="Reset Filter" style="margin-top: 20px;">Reset</button>
                     </div>
                 </div>
 
             </div>
-        </form>
+        </div>
     </div>
     <div class="card-body">
         <!--begin: Datatable-->
@@ -53,33 +53,7 @@
                 </tr>
             </thead>
             <tbody>
-                @foreach ($pages as $page)
-
-                <tr>
-                    <td>{{$loop->iteration}}</td>
-                    <td>{{$page->page_name}}</td>
-                    <td>{{$page->slug}}</td>
-                    <td>{{$page->meta_title}}</td>
-                    <td>
-                        <a href="javascript:void(0)" data-url="{{url('admin/page/update-status/'.$page->id.'/'.$page->status)}}" onclick="changeStatus(this)"> <span class="label label-lg font-weight-bold label-light-{{($page->status == 1) ? 'success' : 'danger'}} label-inline">{{($page->status == 1) ? 'Active' : 'InActive'}}</span></a>
-                    </td>
-                    <td>
-                        <a href="{{url('/admin/page/edit/'.$page->id)}}" class="btn btn-sm btn-clean btn-icon" title="Edit details" data-toggle="tooltip">
-                            <i class="la la-edit"></i>
-                        </a>
-
-                        <a href="{{url('/admin/page/delete/'.$page->id)}}" class="btn btn-sm btn-clean btn-icon" title="Edit details" data-toggle="tooltip">
-                            <i class="la la-trash"></i>
-                        </a>
-                    </td>
-
-
-
-                </tr>
-
-
-                @endforeach
-
+                <!-- Data will be loaded via AJAX -->
             </tbody>
         </table>
         <!--end: Datatable-->
@@ -98,16 +72,67 @@
 
 {{-- Scripts Section --}}
 @section('scripts')
-<script>
-    $(document).ready(function() {
-        $('#myTable').DataTable();
-        $('.dataTables_filter label input[type=search]').addClass('form-control form-control-sm');
-        $('.dataTables_length select').addClass('custom-select custom-select-sm form-control form-control-sm');
-    });
-</script>
-{{-- vendors --}}
 <script src="//cdn.datatables.net/1.11.3/js/jquery.dataTables.min.js" type="text/javascript"></script>
 <!-- <script src="{{ asset('plugins/custom/datatables/datatables.bundle.js') }}" type="text/javascript"></script> -->
+
+<script>
+    var table;
+    $(document).ready(function() {
+        // Initialize DataTable with AJAX
+        table = $('#myTable').DataTable({
+            processing: true,
+            serverSide: true,
+            ajax: {
+                url: "{{ url('admin/page/list') }}",
+                type: 'GET',
+                data: function(d) {
+                    d.status = $('#statusFilter').val();
+                }
+            },
+            columns: [
+                { data: 'counter', name: 'id', orderable: true, searchable: false },
+                { data: 'page_name', name: 'page_name', orderable: true },
+                { data: 'slug', name: 'slug', orderable: true },
+                { data: 'meta_title', name: 'seo_title', orderable: true },
+                { data: 'status', name: 'status', orderable: true, searchable: false },
+                { data: 'action', name: 'action', orderable: false, searchable: false }
+            ],
+            order: [[0, 'desc']],
+            pageLength: 10,
+            lengthMenu: [[10, 25, 50, 100, -1], [10, 25, 50, 100, "All"]],
+            language: {
+                processing: '<i class="fa fa-spinner fa-spin fa-3x fa-fw"></i><span class="sr-only">Loading...</span>'
+            },
+            drawCallback: function() {
+                // Reinitialize tooltips after each draw
+                $('[data-toggle="tooltip"]').tooltip();
+            }
+        });
+
+        // Apply custom styles to DataTables elements
+        $('.dataTables_filter label input[type=search]').addClass('form-control form-control-sm');
+        $('.dataTables_length select').addClass('custom-select custom-select-sm form-control form-control-sm');
+
+        // Apply Filter Button
+        $('#applyFilter').on('click', function() {
+            table.ajax.reload();
+        });
+
+        // Reset Filter Button
+        $('#resetFilter').on('click', function() {
+            $('#statusFilter').val('-1');
+            table.ajax.reload();
+        });
+    });
+
+    // Change Status Function
+    function changeStatus(element) {
+        var url = $(element).data('url');
+        if (confirm('Are you sure you want to change the status?')) {
+            window.location.href = url;
+        }
+    }
+</script>
 
 {{-- page scripts --}}
 <!-- <script src="{{ asset('js/pages/crud/datatables/basic/basic.js') }}" type="text/javascript"></script>

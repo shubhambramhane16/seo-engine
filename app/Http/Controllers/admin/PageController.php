@@ -21,7 +21,7 @@ use Illuminate\Support\Str;
 
 class PageController extends Controller
 {
-    public function index()
+    public function index(Request $request)
     {
         try {
             $page_title = 'Page Management';
@@ -32,18 +32,98 @@ class PageController extends Controller
                     'url' => '',
                 ],
             ];
-            $status = request('status');
-            if ($status == '0') {
-                $status = '2';
+
+            // Handle AJAX request for DataTables
+            if ($request->ajax()) {
+                $status = $request->get('status');
+                if ($status == '0') {
+                    $status = '2';
+                }
+
+                $query = Pages::with(['rule'])->when($status && $status != '-1', function ($q, $status) {
+                    return $q->where('status', $status);
+                });
+
+                // Get filtered count
+                $filteredCount = $query->count();
+
+                // Apply search
+                if ($request->has('search') && !empty($request->get('search')['value'])) {
+                    $search = $request->get('search')['value'];
+                    $query->where(function ($q) use ($search) {
+                        $q->where('page_name', 'like', "%{$search}%")
+                          ->orWhere('slug', 'like', "%{$search}%")
+                          ->orWhere('seo_title', 'like', "%{$search}%");
+                    });
+                }
+
+                // Get total count after search
+                $totalFiltered = $query->count();
+
+                // Apply ordering
+                $order = $request->get('order', []);
+                if (!empty($order) && isset($order[0])) {
+                    $orderColumnIndex = $order[0]['column'] ?? 0;
+                    $orderDirection = $order[0]['dir'] ?? 'desc';
+                } else {
+                    $orderColumnIndex = 0;
+                    $orderDirection = 'desc';
+                }
+
+                $columns = ['id', 'page_name', 'slug', 'seo_title', 'status'];
+
+                if (isset($columns[$orderColumnIndex])) {
+                    $query->orderBy($columns[$orderColumnIndex], $orderDirection);
+                } else {
+                    $query->orderBy('id', 'desc');
+                }
+
+                // Apply pagination
+                $start = $request->get('start', 0);
+                $length = $request->get('length', 10);
+                $pages = $query->skip($start)->take($length)->get();
+
+                // Format data for DataTables
+                $data = [];
+                $counter = $start + 1;
+                foreach ($pages as $page) {
+                    $statusLabel = $page->status == 1
+                        ? '<span class="label label-lg font-weight-bold label-light-success label-inline">Active</span>'
+                        : '<span class="label label-lg font-weight-bold label-light-danger label-inline">InActive</span>';
+
+                    $statusLink = '<a href="javascript:void(0)" data-url="' . url('admin/page/update-status/' . $page->id . '/' . $page->status) . '" onclick="changeStatus(this)">' . $statusLabel . '</a>';
+
+                    $actions = '<a href="' . url('/admin/page/edit/' . $page->id) . '" class="btn btn-sm btn-clean btn-icon" title="Edit details" data-toggle="tooltip">
+                        <i class="la la-edit"></i>
+                    </a>
+                    <a href="' . url('/admin/page/delete/' . $page->id) . '" class="btn btn-sm btn-clean btn-icon" title="Delete" data-toggle="tooltip">
+                        <i class="la la-trash"></i>
+                    </a>';
+
+                    $data[] = [
+                        'counter' => $counter++,
+                        'page_name' => $page->page_name ?? '',
+                        'slug' => $page->slug ?? '',
+                        'meta_title' => $page->seo_title ?? '',
+                        'status' => $statusLink,
+                        'action' => $actions,
+                    ];
+                }
+
+                return response()->json([
+                    'draw' => intval($request->get('draw')),
+                    'recordsTotal' => Pages::count(),
+                    'recordsFiltered' => $totalFiltered,
+                    'data' => $data,
+                ]);
             }
 
-            $pages = Pages::with(['rule'])->when($status, function ($query, $status) {
-                return $query->where('status', $status);
-            })->orderBy('id', 'desc')->get();
-
-            return view('admin.pages.page.list', compact('page_title', 'page_description', 'breadcrumbs', 'pages'));
+            // Regular page load
+            return view('admin.pages.page.list', compact('page_title', 'page_description', 'breadcrumbs'));
         } catch (\Exception $e) {
-            dd($e);
+            if ($request->ajax()) {
+                return response()->json(['error' => $e->getMessage()], 500);
+            }
             return redirect()->back()->with('error', $e->getMessage());
         }
     }
