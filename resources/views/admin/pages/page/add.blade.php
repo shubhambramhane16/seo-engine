@@ -15,8 +15,22 @@
                         <div class="row col-lg-12 pl-0 pr-0">
                             <div class="col-sm-4">
                                 <div class="dataTables_length">
+                                    <label>Select City</label>
+                                    <select name="city_id" class="form-control select" id='city_id' onchange="ruleCombinations($('#rule_id').val(), this.value);">
+                                        <option value="">Select City</option>
+
+                                        @if( $cities= App\Models\City::where('status',1)->get())
+                                        @foreach($cities as $city)
+                                        <option value="{{$city->id}}" @if(request('city_id')==$city->id ) {{runTimeSelection($city->id, request('city_id'))}} @endif>{{$city->name}}</option>
+                                        @endforeach
+                                        @endif
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="col-sm-4">
+                                <div class="dataTables_length">
                                     <label>Rule Name</label>
-                                    <select name="rule_id" class="form-control" id='rule_id' onchange="ruleCombinations(this.value);">
+                                    <select name="rule_id" class="form-control select" id='rule_id' onchange="ruleCombinations(this.value, $('#city_id').val());">
                                         <option value="">Select Rule</option>
                                         @if($rules)
                                         @foreach($rules as $rule)
@@ -89,7 +103,7 @@
                                         <td>{{ $value->rule?->rule_name }}</td>
                                         <td>{{ $value->no_of_pages }}</td>
                                         <td>
-                                           
+
                                         </td>
                                     </tr>
 
@@ -120,14 +134,16 @@
 
 <script>
     // rule change
+    $('.select').select2();
 
 
-    function ruleCombinations(ruleId) {
+    function ruleCombinations(ruleId, cityId) {
         $.ajax({
             url: "{{url('ajax/ruleCombinations')}}",
             type: "GET",
             data: {
-                ruleId: ruleId
+                ruleId: ruleId,
+                cityId: cityId,
             },
             success: function(data) {
                 console.log(data);

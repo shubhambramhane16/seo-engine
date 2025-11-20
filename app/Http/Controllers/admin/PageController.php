@@ -137,9 +137,11 @@ class PageController extends Controller
                 ini_set('memory_limit', '-1');
                 $validator = Validator::make($request->all(), [
                     'rule_id' => 'required',
+                    'city_id' => 'required',
                     'number_of_combination' => 'required',
                 ], [
                     'rule_id.required' => 'Rule is required.',
+                    'city_id.required' => 'City is required.',
                     'number_of_combination.required' => 'Number of combination is required.',
                     'rule_id.unique' => 'Rule already exists.',
                 ]);
@@ -151,6 +153,7 @@ class PageController extends Controller
 
                 $array = [
                     'rule_id' => $request->rule_id,
+                    // 'city_id' => $request->city_id,
                     'no_of_pages' => $request->number_of_combination,
                     'created_by' => auth()->user()->id,
                 ];
@@ -184,6 +187,11 @@ class PageController extends Controller
                         $data[] = $model::where('status', 1)->where('parent_id', '!=', 0)->where('category_name', '!=', '')->pluck('category_name')->map(function ($name) {
                             return strtolower(str_replace(' ', '-', $name));
                         })->toArray();
+                        continue;
+                    }
+                    if($model == City::class){
+                        // if city then select only selected city from city_id
+                        $data[] = $model::where('status', 1)->where('slug', '!=', '')->where('id', $request->city_id)->pluck('slug')->toArray();
                         continue;
                     }
                     $data[] = $model::where('status', 1)->where('slug', '!=', '')->pluck('slug')->toArray();

@@ -51,6 +51,7 @@ class CommonController extends Controller
     public function ruleCombinations(){
 
         $ruleId = request('ruleId');
+        $cityId = request('cityId');
         if ($ruleId) {
             $rule = Rules::find($ruleId);
             if ($rule && $rule->properties) {
@@ -80,7 +81,7 @@ class CommonController extends Controller
                     ->where('category_name', '!=', '')
                     ->count();
                 } elseif ($model === City::class) {
-                $counts[] = City::where('status', 1)->where('slug', '!=', '')->count();
+                $counts[] = City::where('status', 1)->where('slug', '!=', '')->where('id', $cityId)->count();
                 } elseif ($model === Locality::class) {
                 $counts[] = Locality::where('status', 1)->where('slug', '!=', '')->count();
                 } else { // Tests (items)
