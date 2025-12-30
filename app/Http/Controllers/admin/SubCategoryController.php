@@ -220,7 +220,7 @@ class SubCategoryController extends Controller
                 ];
                 $response = Category::UpdateOrCreate(['id' => $cityId], $updateArr);
                 DB::commit();
-                return redirect('admin/subcategories/list')->with('success', 'City status updated successfully.');
+                return redirect()->back()->with('success', 'City status updated successfully.');
             } else {
                 return redirect()->back()->with('error', 'City details not found.');
             }
