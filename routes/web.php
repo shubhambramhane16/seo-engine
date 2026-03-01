@@ -12,9 +12,9 @@ use Illuminate\Support\Facades\Route;
 | contains the "web" middleware group. Now create something great!
 |
 */
-Route::get('phpinfo', function(){
-    phpinfo();
-});
+// Route::get('phpinfo', function(){
+//     phpinfo();
+// });
 Route::get('/', 'Auth\LoginController@index');
 Route::get('/admin', 'Auth\LoginController@index');
 Route::get('/admin/login', 'Auth\LoginController@index');
@@ -72,6 +72,7 @@ Route::group(['prefix' => 'admin', 'namespace' => 'admin', 'middleware' => 'Chec
     /**
      *  Sub Category Master
      */
+    Route::any('/subcategories/list/', 'SubCategoryController@index');
     Route::any('/subcategories/list/{category_id}', 'SubCategoryController@index');
     Route::any('/subcategories/add/{category_id}', 'SubCategoryController@add');
     Route::any('/subcategories/edit/{category_id}/{id}', 'SubCategoryController@edit');
@@ -241,9 +242,34 @@ Route::get('clear-cache', function () {
     echo 'Cache cleared successfully.';
 });
 
+Route::get('/check-env', function () {
+    return [
+        'XCUBE_BASE_URL' => config('api.XCUBE_BASE_URL'),
+        'XCUBE_LOGIN_BASE_URL' => config('api.XCUBE_LOGIN_BASE_URL'),
+        'secretKey' => config('api.secretKey'),
+        'X_APP_ID' => config('api.X_APP_ID'),
+        'X_SOURCE' => config('api.X_SOURCE'),
+        'X_APP_VERSION' => config('api.X_APP_VERSION'),
+    ];
+});
 
-
-
+Route::get('/refresh-guest-token', function () {
+    try {
+        $auth = new App\Http\Controllers\API\AuthController();
+        $request = request();
+        $response = $auth->loginbyGuest($request);
+        $data = json_decode($response, true);
+        
+        if (!empty($data['data']['token'])) {
+            $newToken = $data['data']['token'];
+            Cache::put('guest_token6', $newToken, now()->addMinutes(50));
+            Log::info('Background Guest Token Refreshed Successfully');
+        }
+    } catch (\Exception $e) {
+        Log::warning('Background token refresh failed', ['error' => $e->getMessage()]);
+    }
+    return response()->json(['status' => 'ok']);
+})->name('refresh-guest-token');
 // Route::get('remove', function () {
 // //    How To Restore Files.txt
 //     $file = 'HOW TO RESTORE FILES.txt';
@@ -266,12 +292,51 @@ Route::get('clear-cache', function () {
 // });
 
 // generate sitemap
+// Route::get('/sitemap', function () {
+//     sitemapCity();
+//     sitemapTest();
+//     echo "Sitemap generated successfully.";
+// });
+// generate sitemap and download as zip
+
 Route::get('/sitemap', function () {
     sitemapCity();
     sitemapTest();
-    echo "Sitemap generated successfully.";
-});
 
+    $zipFileName = 'sitemaps.zip';
+    $sitemapDir = base_path('test'); // Directory where all sitemaps are generated
+
+    // Create a temporary zip file
+    $zipPath = storage_path('app/' . $zipFileName); // Or public_path() if you prefer
+
+    $zip = new ZipArchive();
+    if ($zip->open($zipPath, ZipArchive::CREATE | ZipArchive::OVERWRITE) === true) {
+        // Add all files from the 'test' directory recursively
+        $files = new RecursiveIteratorIterator(
+            new RecursiveDirectoryIterator($sitemapDir),
+            RecursiveIteratorIterator::LEAVES_ONLY
+        );
+
+        foreach ($files as $name => $file) {
+            // Skip directories
+            if (!$file->isDir()) {
+                $filePath = $file->getRealPath();
+                $relativePath = substr($filePath, strlen($sitemapDir) + 1);
+                $zip->addFile($filePath, $relativePath);
+            }
+        }
+
+        $zip->close();
+    } else {
+        return response()->json(['error' => 'Could not create zip file'], 500);
+    }
+
+    // Trigger download and optionally delete the zip afterwards
+    return response()->download($zipPath, $zipFileName)->deleteFileAfterSend(true);
+
+    // If you want to just generate without download, comment the above and echo message
+    // echo "Sitemap generated and zipped successfully.";
+});
 
 
 function sitemapCity()
@@ -312,7 +377,7 @@ function sitemapTest(){
         $sitemapPath = base_path("test/sitemap-test-{$city}.xml");
 
         // disease/allergy/agra where agra is the city is found at end of the url
-        $pages = App\Models\Pages::where('slug', 'LIKE', "%/{$city}")->get();
+        $pages = App\Models\Pages::where('status', 1)->where('slug', 'LIKE', "%/{$city}")->get();
 
         // dd($sitemapPath);
 

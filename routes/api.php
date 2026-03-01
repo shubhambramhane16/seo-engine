@@ -36,8 +36,9 @@ Route::get('getcallback', 'API\FrontendController@getcallBack');
 Route::get('callBackTest', 'API\FrontendController@callBackTest');
 Route::any('city-list', 'API\FrontendController@cityList');
 Route::any('loginAuth', 'API\AuthController@login');
+Route::get('sample-report-url', 'API\FrontendController@getSampleReportUrl');
 // Route::any('test-details', 'testDetails')->name('testDetails');
-
+Route::get('test/categories', 'API\FrontendController@testCategory');
 
 
 

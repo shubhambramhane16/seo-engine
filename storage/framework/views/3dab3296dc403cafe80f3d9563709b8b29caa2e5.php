@@ -1,7 +1,5 @@
-@extends('admin.layout.default')
-
-@section('pagemaster','active menu-item-open')
-@section('content')
+<?php $__env->startSection('pagemaster','active menu-item-open'); ?>
+<?php $__env->startSection('content'); ?>
 <div class="card card-custom">
     <div class="card-header flex-wrap border-0 pt-3 pb-0">
         <div class="card-title">
@@ -9,9 +7,9 @@
             </h3>
         </div>
         <div class="card-toolbar">
-            {{-- @include('admin.layout.partials.filters.common-filter') --}}
+            
             <!--begin::Button-->
-            <a href="{{url('/admin/page/add')}}" class="btn btn-primary font-weight-bolder">
+            <a href="<?php echo e(url('/admin/page/add')); ?>" class="btn btn-primary font-weight-bolder">
                 <i class="la la-plus"></i> Generator </a>
             <!--end::Button-->
         </div>
@@ -61,19 +59,19 @@
 </div>
 
 
-@endsection
+<?php $__env->stopSection(); ?>
 
-{{-- Styles Section --}}
-@section('styles')
+
+<?php $__env->startSection('styles'); ?>
 <!-- <link href="//cdn.datatables.net/1.11.3/css/jquery.dataTables.min.css" rel="stylesheet" type="text/css" /> -->
-<link href="{{ asset('plugins/custom/datatables/datatables.bundle.css') }}" rel="stylesheet" type="text/css" />
-@endsection
+<link href="<?php echo e(asset('plugins/custom/datatables/datatables.bundle.css')); ?>" rel="stylesheet" type="text/css" />
+<?php $__env->stopSection(); ?>
 
 
-{{-- Scripts Section --}}
-@section('scripts')
+
+<?php $__env->startSection('scripts'); ?>
 <script src="//cdn.datatables.net/1.11.3/js/jquery.dataTables.min.js" type="text/javascript"></script>
-<!-- <script src="{{ asset('plugins/custom/datatables/datatables.bundle.js') }}" type="text/javascript"></script> -->
+<!-- <script src="<?php echo e(asset('plugins/custom/datatables/datatables.bundle.js')); ?>" type="text/javascript"></script> -->
 
 <script>
     var table;
@@ -83,7 +81,7 @@
             processing: true,
             serverSide: true,
             ajax: {
-                url: "{{ url('admin/page/list') }}",
+                url: "<?php echo e(url('admin/page/list')); ?>",
                 type: 'GET',
                 data: function(d) {
                     d.status = $('#statusFilter').val();
@@ -134,7 +132,9 @@
     }
 </script>
 
-{{-- page scripts --}}
-<!-- <script src="{{ asset('js/pages/crud/datatables/basic/basic.js') }}" type="text/javascript"></script>
-<script src="{{ asset('js/app.js') }}" type="text/javascript"></script> -->
-@endsection
+
+<!-- <script src="<?php echo e(asset('js/pages/crud/datatables/basic/basic.js')); ?>" type="text/javascript"></script>
+<script src="<?php echo e(asset('js/app.js')); ?>" type="text/javascript"></script> -->
+<?php $__env->stopSection(); ?>
+
+<?php echo $__env->make('admin.layout.default', \Illuminate\Support\Arr::except(get_defined_vars(), ['__data', '__path']))->render(); ?><?php /**PATH D:\sumeshwar sir plans\seo-engine\resources\views/admin/pages/page/list.blade.php ENDPATH**/ ?>

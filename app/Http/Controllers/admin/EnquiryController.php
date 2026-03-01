@@ -18,27 +18,131 @@ use Illuminate\Support\Facades\Validator;
 
 class EnquiryController extends Controller
 {
-    public function index()
+    public function index(Request $request)
     {
-        $page_title = 'Enquiry';
-        $page_description = '';
-        $breadcrumbs = [
-            [
-                'title' => 'Enquiry Management',
-                'url' => '',
-            ]
-        ];
-        $status = request('status');
-        if ($status == '0') {
-            $status = '2';
-        }
-        $enquiries = Enquiry::when($status, function ($enquiries) use ($status) {
-            if ($status != '-1') {
-                $status = conditionalStatus($status);
-                $enquiries->where('status', '=', $status);
+        try {
+            $page_title       = 'Enquiry Management';
+            $page_description = 'List of all enquiries';
+            $breadcrumbs      = [
+                ['title' => 'Enquiry List', 'url' => ''],
+            ];
+
+            if ($request->ajax() || $request->isMethod('post')) {
+                $status = $request->input('status');
+
+                $query = Enquiry::query()
+                    ->select([
+                        'id',
+                        'name',
+                        'number',
+                        'city',
+                        'locality',
+                        'item_reference',
+                        'form',
+                        'query',
+                        'created_at',
+                        'status'
+                    ]);
+
+                // Status filter
+                if ($status !== null && $status != '-1') {
+                    $query->where('status', $status);
+                }
+
+                // Date range filter
+                if ($request->filled('start_date') && $request->filled('end_date')) {
+                    $query->whereDate('created_at', '>=', $request->start_date)
+                        ->whereDate('created_at', '<=', $request->end_date);
+                }
+
+                // Global search
+                if ($request->filled('search.value')) {
+                    $search = $request->input('search.value');
+                    $query->where(function ($q) use ($search) {
+                        $q->where('name', 'like', "%{$search}%")
+                            ->orWhere('number', 'like', "%{$search}%")
+                            ->orWhere('city', 'like', "%{$search}%")
+                            ->orWhere('locality', 'like', "%{$search}%")
+                            ->orWhere('item_reference', 'like', "%{$search}%")
+                            ->orWhere('form', 'like', "%{$search}%")
+                            ->orWhere('query', 'like', "%{$search}%");
+                    });
+                }
+
+                $recordsFiltered = $query->count();
+
+                // Ordering
+                $orderColumnIndex = $request->input('order.0.column', 0);
+                $orderDir         = $request->input('order.0.dir', 'desc');
+
+                $columns = [
+                    0  => 'id',
+                    1  => 'name',
+                    2  => 'number',
+                    3  => 'city',
+                    4  => 'locality',
+                    5  => 'item_reference',
+                    6  => 'form',
+                    7  => 'query',
+                    8  => 'created_at',
+                    9  => 'status',
+                ];
+
+                $orderColumn = $columns[$orderColumnIndex] ?? 'id';
+                $query->orderBy($orderColumn, $orderDir);
+
+                // Pagination
+                $start  = (int) $request->input('start', 0);
+                $length = (int) $request->input('length', 20);
+                if ($length <= 0 || $length > 200) $length = 20;
+
+                $enquiries = $query->skip($start)->take($length)->get();
+
+                $data = [];
+                $counter = $start + 1;
+
+                foreach ($enquiries as $enquiry) {
+                    $statusClass = $enquiry->status == 1 ? 'success' : 'danger';
+                    $statusText  = $enquiry->status == 1 ? 'Active' : 'InActive';
+
+                    $statusHtml = '<a href="javascript:void(0)" data-url="' . url("admin/enquiry/update-status/{$enquiry->id}/{$enquiry->status}") . '" onclick="changeStatus(this)">
+                    <span class="label label-lg font-weight-bold label-light-' . $statusClass . ' label-inline">' . $statusText . '</span>
+                </a>';
+
+                    $actionHtml = '<a href="' . url("/admin/enquiry/edit/{$enquiry->id}") . '" class="btn btn-sm btn-clean btn-icon" title="Edit" data-toggle="tooltip">
+                    <i class="la la-edit"></i>
+                </a>';
+
+                    $data[] = [
+                        'counter'        => $counter++,
+                        'name'           => $enquiry->name ?? '-',
+                        'number'         => $enquiry->number ?? '-',
+                        'city'           => $enquiry->city ?? '-',
+                        'locality'       => $enquiry->locality ?? '-',
+                        'item_reference' => $enquiry->item_reference ?? '-',
+                        'form'           => $enquiry->form ?? '-',
+                        'query'          => $enquiry->query ?? '-',
+                        'created_at'     => $enquiry->created_at ? $enquiry->created_at->format('d-m-Y H:i:s') : '-',
+                        'status'         => $statusHtml,
+                        'action'         => $actionHtml,
+                    ];
+                }
+
+                return response()->json([
+                    'draw'            => (int) $request->input('draw'),
+                    'recordsTotal'    => Enquiry::count(),
+                    'recordsFiltered' => $recordsFiltered,
+                    'data'            => $data,
+                ]);
             }
-        })->orderBy('id', 'DESC')->get();
-        return view('admin.pages.enquiry.list', compact('page_title', 'page_description', 'breadcrumbs', 'enquiries'));
+
+            return view('admin.pages.enquiry.list', compact('page_title', 'page_description', 'breadcrumbs'));
+        } catch (\Exception $e) {
+            if ($request->ajax() || $request->isMethod('post')) {
+                return response()->json(['error' => 'Server error: ' . $e->getMessage()], 500);
+            }
+            return redirect()->back()->with('error', $e->getMessage());
+        }
     }
 
     public function add(Request $request)

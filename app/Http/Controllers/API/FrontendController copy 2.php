@@ -6,7 +6,6 @@ use App\Models\Module;
 use GuzzleHttp\Client;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use App\Http\Controllers\Controller;
 use Illuminate\Support\Facades\Validator;
@@ -117,83 +116,75 @@ class FrontendController extends Controller
         ];
     }
 
-    private function safeApiCall($callback, $cacheKey = null, $cacheMinutes = 45)
-    {
-        $attempt = 0;
-        $maxAttempts = 5;
+private function safeApiCall($callback, $cacheKey = null, $cacheMinutes = 60)
+{
+    $attempt = 0;
+    $maxAttempts = 5;
 
-        while ($attempt < $maxAttempts) {
-            $attempt++;
+    while ($attempt < $maxAttempts) {
+        $attempt++;
+        $response = $callback();
 
-            try {
-                $response = $callback(); // Yeh already JSON string hai
-
-                // Agar response valid hai → direct return kar do (NO json_encode!)
-                if (!$this->isInvalidResponse($response)) {
-                    if ($cacheKey) {
-                        Cache::put($cacheKey, $response, now()->addMinutes($cacheMinutes));
-                        Log::info("API Success → Cached", ['key' => $cacheKey]);
-                    }
-                    return $response; // ← YEHI SABSE ZAROORI HAI
-                }
-
-                Log::warning("API Attempt #$attempt → Invalid Response", [
-                    'preview' => substr($response, 0, 400)
-                ]);
-
-            } catch (\Exception $e) {
-                Log::warning("API Exception", ['error' => $e->getMessage()]);
+        if (!$this->isInvalidResponse($response)) {
+            // Success → Cache kar do
+            if ($cacheKey) {
+                Cache::put($cacheKey, $response, now()->addMinutes($cacheMinutes));
+                Log::info("API Success → Cached", ['key' => $cacheKey]);
             }
-
-            if ($attempt < $maxAttempts) {
-                usleep(1500000); // 1.5 sec
-            }
+            return $response;
         }
 
-        // Cache se serve karo
-        if ($cacheKey && Cache::has($cacheKey)) {
-            $cached = Cache::get($cacheKey);
-            Log::info("Serving from CACHE", ['key' => $cacheKey]);
-            return $cached; // ← Direct return, no wrap
-        }
-
-        // FINAL FALLBACK — SIRF EK BAAR JSON ENCODE
-        $fallback = json_encode([
-            'status' => true,
-            'message' => '',
-            'data' => [
-                'result' => [],
-                'pagination' => [
-                    'total' => 0,
-                    'current_page' => 1,
-                    'last_page' => 1
-                ]
-            ]
+        Log::warning("API Attempt #$attempt failed", [
+            'preview' => substr($response, 0, 300),
+            'key' => $cacheKey
         ]);
 
-        Log::critical("API + Cache failed → Fallback served", ['key' => $cacheKey]);
-        return $fallback;
-    }
-
-    private function isInvalidResponse($response)
-    {
-        if (empty($response) || !is_string($response)) return true;
-
-        $data = json_decode($response, true);
-        if (json_last_error() !== JSON_ERROR_NONE) return true;
-
-        if (isset($data['status']) && $data['status'] === false) return true;
-
-        if (
-            empty($data['data']['result']) ||
-            !is_array($data['data']['result']) ||
-            count($data['data']['result']) === 0
-        ) {
-            return true;
+        if ($attempt < $maxAttempts) {
+            usleep(1200000); // 1.2 sec wait
         }
-
-        return false;
     }
+
+    // Sab attempts fail → Cache se dikhao
+    if ($cacheKey && Cache::has($cacheKey)) {
+        $cached = Cache::get($cacheKey);
+        Log::info("All attempts failed → Serving from CACHE", ['key' => $cacheKey]);
+        return $cached;
+    }
+
+    Log::error("API & Cache both failed!", ['key' => $cacheKey]);
+    return json_encode([
+        'status' => false,
+        'mesage' => 'Service temporarily unavailable. Please try again later.',
+        'data' => null
+    ]);
+}
+
+private function isInvalidResponse($response)
+{
+    if (empty($response) || trim($response) === '' || trim($response) === 'null' || $response === null) {
+        return true;
+    }
+
+    $data = json_decode($response, true);
+    if (json_last_error() !== JSON_ERROR_NONE) {
+        return true;
+    }
+
+    if (isset($data['status']) && $data['status'] === false) {
+        return true;
+    }
+
+    if (
+        !isset($data['data']['result']) ||
+        $data['data']['result'] === null ||
+        $data['data']['result'] === [] ||
+        (is_array($data['data']['result']) && count($data['data']['result']) === 0)
+    ) {
+        return true;
+    }
+
+    return false;
+}
 
     public function page(Request $request, $city = null, $locality = null)
     {
@@ -205,229 +196,250 @@ class FrontendController extends Controller
             ],
         ];
 
+        try {
+            $response = $client->get($url, $headers);
+            $jsonData = $response->getBody()->getContents();
+            $result = json_decode($jsonData, true);
+            $page_title = ' Diagnostic Centre and Pathology Lab for Blood Test | Dr Lal PathLabs';
+            $page_description = '';
+            $breadcrumbs = [
+                [
+                    'title' => 'Home Page',
+                    'url' => url($city),
+                ],
+            ];
 
-        $response = $client->get($url, $headers);
-        $jsonData = $response->getBody()->getContents();
-        $result = json_decode($jsonData, true);
-        $page_title = ' Diagnostic Centre and Pathology Lab for Blood Test | Dr Lal PathLabs';
-        $page_description = '';
-        $breadcrumbs = [
-            [
-                'title' => 'Home Page',
-                'url' => url($city),
-            ],
-        ];
-
-        if ($request->isMethod('post')) {
-            $validator = Validator::make($request->all(), [
-                'name' => 'required|regex:/^[a-zA-Z]+(?:\s+[a-zA-Z]+)*$/|max:30',
-                'number' => ['required', 'regex:/^[6789]\d{9}$/'],
-                'otp' => 'required|max:4',
-            ]);
-
-            if ($validator->fails()) {
-                return response()->json([
-                    'status' => false,
-                    'message' => Response::HTTP_BAD_REQUEST,
-                    'errors' => $validator->errors()->toArray(),
+            if ($request->isMethod('post')) {
+                $validator = Validator::make($request->all(), [
+                    'name' => 'required|regex:/^[a-zA-Z]+(?:\s+[a-zA-Z]+)*$/|max:30',
+                    'number' => ['required', 'regex:/^[6789]\d{9}$/'],
+                    'otp' => 'required|max:4',
                 ]);
-            } else {
-                DB::beginTransaction();
-                $enquiryResponse = $this->sendEnquiry($request, $city);
-                Log::info(['equiry lpl' => $enquiryResponse]);
-                if ($enquiryResponse['id'] != 0) {
-                    $data = $request->except(['_token', 'otp']);
-                    $dataWithTimestamps = array_merge($data, [
-                        'city' => $city,
-                        'locality' => request('locality'),
-                        'created_at' => now(),
-                        'updated_at' => now(),
-                    ]);
-                    DB::table('enquiries')->insert($dataWithTimestamps);
-                    DB::commit();
-                    return response()->json([
-                        'status' => true,
-                        'message' => 'Enquiry sent successfully.',
-                        'data' => $dataWithTimestamps,
-                    ]);
-                } else {
+
+                if ($validator->fails()) {
                     return response()->json([
                         'status' => false,
-                        'message' => 'Invalid otp.',
-                        'data' => 'OTP not verified.',
+                        'message' => Response::HTTP_BAD_REQUEST,
+                        'errors' => $validator->errors()->toArray(),
                     ]);
+                } else {
+                    DB::beginTransaction();
+                    $enquiryResponse = $this->sendEnquiry($request, $city);
+                    Log::info(['equiry lpl' => $enquiryResponse]);
+                    if ($enquiryResponse['id'] != 0) {
+                        $data = $request->except(['_token', 'otp']);
+                        $dataWithTimestamps = array_merge($data, [
+                            'city' => $city,
+                            'locality' => request('locality'),
+                            'created_at' => now(),
+                            'updated_at' => now(),
+                        ]);
+                        DB::table('enquiries')->insert($dataWithTimestamps);
+                        DB::commit();
+                        return response()->json([
+                            'status' => true,
+                            'message' => 'Enquiry sent successfully.',
+                            'data' => $dataWithTimestamps,
+                        ]);
+                    } else {
+                        return response()->json([
+                            'status' => false,
+                            'message' => 'Invalid otp.',
+                            'data' => 'OTP not verified.',
+                        ]);
+                    }
                 }
             }
-        }
 
-        $getcity = DB::table('cities')->whereRaw('LOWER(name) = LOWER(?)', [$city])->first();
-        $localityDataNew = [];
-        $cities = DB::table('cities')->get();
-        if ($getcity) {
-            $localities = DB::table('locality')->where('city_id', $getcity->id)->take(40)->get();
-            $localityData = DB::table('centres')->where('city_name', $city)->paginate(6);
-            $page = DB::table('pages')->select('*')->where('page_url', url()->full())->first();
-            $localityOne = DB::table('locality')->select('*')->where('slug', $locality)->first();
-            if ($localityOne) {
-                if ($cities != '' and $locality != '') {
-                    $localityDataNew = DB::table('centres')->where('city_name', $city)
-                        ->whereRaw('LOWER(locality) LIKE ?', ['%' . strtolower($localityOne->name) . '%'])
-                        ->paginate(6);
+            $getcity = DB::table('cities')->whereRaw('LOWER(name) = LOWER(?)', [$city])->first();
+            $localityDataNew = [];
+            $cities = DB::table('cities')->get();
+            if ($getcity) {
+                $localities = DB::table('locality')->where('city_id', $getcity->id)->take(40)->get();
+                $localityData = DB::table('centres')->where('city_name', $city)->paginate(6);
+                $page = DB::table('pages')->select('*')->where('page_url', url()->full())->first();
+                $localityOne = DB::table('locality')->select('*')->where('slug', $locality)->first();
+                if ($localityOne) {
+                    if ($cities != '' and $locality != '') {
+                        $localityDataNew = DB::table('centres')->where('city_name', $city)
+                            ->whereRaw('LOWER(locality) LIKE ?', ['%' . strtolower($localityOne->name) . '%'])
+                            ->paginate(6);
+                    }
                 }
+            } else {
+                $localities = [];
             }
-        } else {
-            $localities = [];
-        }
 
-        $localityData = count($localityDataNew) != 0 ? $localityDataNew ?? [] : $localityData ?? [];
-        $page = $page ?? [];
-        $localityOne = $localityOne ?? [];
+            $localityData = count($localityDataNew) != 0 ? $localityDataNew ?? [] : $localityData ?? [];
+            $page = $page ?? [];
+            $localityOne = $localityOne ?? [];
 
-        if ($request->ajax()) {
+            if ($request->ajax()) {
+                return response()->json([
+                    'html' => view('frontend.page.data-load.locality-package', compact('localityData'))->render(),
+                    'nextPage' => $localityData->hasMorePages() ? $localityData->currentPage() + 1 : null,
+                    'hasMorePages' => $localityData->hasMorePages(),
+                ]);
+            }
+
+            $master_keyword = $locality
+                ? ucfirst(str_replace('-', ' ', $locality)) . ', ' . ucfirst($city)
+                : ucfirst($city);
+
+            $seo_tags = [
+                'title' => $page->seo_title ?? "Book Blood Test in $master_keyword Path Labs Near Me - Dr Lal PathLabs",
+                'meta' => [
+                    'title' => $page->seo_title ?? "Book Blood Test in $master_keyword, Path Labs Near Me - Dr Lal PathLabs",
+                    'description' => $page->seo_description ?? "Book Blood Test in $master_keyword, Path Labs Near Me - Dr Lal PathLabs",
+                    'keywords' => $page->seo_keywords ?? '',
+                    'robots' => 'index, follow',
+                    'og' => [
+                        'title' => $page->og_meta_title ?? "Book Blood Test in $master_keyword, Path Labs Near Me - Dr Lal PathLabs",
+                        'site_name' => 'Dr Lal PathLabs',
+                        'url' => $page->og_meta_image_url ?? $currentUrl,
+                        'description' => $page->og_meta_description ?? 'Dr Lal Pathlabs has top-rated blood test labs & diagnostic centers in Surat. Blood sample home collection available. Book Lab test for accurate results.',
+                        'type' => 'article',
+                    ],
+                    'twitter' => [
+                        'card' => 'summary_large_image',
+                        'description' => $page->twitter_card_description ?? '',
+                        'title' => $page->twitter_card_title ?? '',
+                        'site' => '@DrLalPathLabs',
+                    ],
+                ],
+                'schema_markup' => $page->schema_markup ?? $this->getLocalSchemaMarkup($city),
+                'page_script' => $page->page_script ?? '',
+            ];
+
             return response()->json([
-                'html' => view('frontend.page.data-load.locality-package', compact('localityData'))->render(),
-                'nextPage' => $localityData->hasMorePages() ? $localityData->currentPage() + 1 : null,
-                'hasMorePages' => $localityData->hasMorePages(),
-            ]);
-        }
-
-        $master_keyword = $locality
-            ? ucfirst(str_replace('-', ' ', $locality)) . ', ' . ucfirst($city)
-            : ucfirst($city);
-
-        $seo_tags = [
-            'title' => $page->seo_title ?? "Book Blood Test in $master_keyword Path Labs Near Me - Dr Lal PathLabs",
-            'meta' => [
-                'title' => $page->seo_title ?? "Book Blood Test in $master_keyword, Path Labs Near Me - Dr Lal PathLabs",
-                'description' => $page->seo_description ?? "Book Blood Test in $master_keyword, Path Labs Near Me - Dr Lal PathLabs",
-                'keywords' => $page->seo_keywords ?? '',
-                'robots' => 'index, follow',
-                'og' => [
-                    'title' => $page->og_meta_title ?? "Book Blood Test in $master_keyword, Path Labs Near Me - Dr Lal PathLabs",
-                    'site_name' => 'Dr Lal PathLabs',
-                    'url' => $page->og_meta_image_url ?? $currentUrl,
-                    'description' => $page->og_meta_description ?? 'Dr Lal Pathlabs has top-rated blood test labs & diagnostic centers in Surat. Blood sample home collection available. Book Lab test for accurate results.',
-                    'type' => 'article',
+                'status' => true,
+                'mesage' => 'Data successfully retrieved.',
+                'data' => [
+                    'page_title' => $page_title,
+                    'breadcrumbs' => $breadcrumbs,
+                    'cities' => $cities,
+                    'getcity' => $getcity,
+                    'localities' => $localities,
+                    'localityData' => $localityData,
+                    'localityOne' => $localityOne,
+                    'page' => $page,
+                    'tests' => $tests ?? [],
+                    'packagelist' => $packagelist ?? [],
+                    'pagination' => $pagination ?? [],
+                    'seo' => $seo_tags,
                 ],
-                'twitter' => [
-                    'card' => 'summary_large_image',
-                    'description' => $page->twitter_card_description ?? '',
-                    'title' => $page->twitter_card_title ?? '',
-                    'site' => '@DrLalPathLabs',
-                ],
-            ],
-            'schema_markup' => $page->schema_markup ?? $this->getLocalSchemaMarkup($city),
-            'page_script' => $page->page_script ?? '',
-        ];
+            ], 200);
+        } catch (\Exception $e) {
+    Log::error("FrontendController Error: " . $e->getMessage(), [
+        'trace' => $e->getTraceAsString(),
+        'city' => $city ?? null,
+        'url' => request()->fullUrl()
+    ]);
 
-        return response()->json([
-            'status' => true,
-            'mesage' => 'Data successfully retrieved.',
-            'data' => [
-                'page_title' => $page_title,
-                'breadcrumbs' => $breadcrumbs,
-                'cities' => $cities,
-                'getcity' => $getcity,
-                'localities' => $localities,
-                'localityData' => $localityData,
-                'localityOne' => $localityOne,
-                'page' => $page,
-                'tests' => $tests ?? [],
-                'packagelist' => $packagelist ?? [],
-                'pagination' => $pagination ?? [],
-                'seo' => $seo_tags,
-            ],
-        ], 200);
+    return response()->json([
+        'status' => false,
+        'mesage' => 'Temporary service issue. Please try again in a few seconds.',
+        'data' => null,
+        'debug' => app()->environment('local') ? $e->getMessage() : null
+    ], 503); // 503 = Service Unavailable (better than 402)
+}
     }
 
     public function testList(Request $request, $city = null, $locality = null)
     {
         $currentUrl = 'https://www.lalpathlabs.com/test/city/' . $city . ($locality ? '/' . $locality : '');
 
+        try {
+            $page_title = ' Diagnostic Centre and Pathology Lab for Blood Test | Dr Lal PathLabs';
+            $page_description = '';
+            $breadcrumbs = [
+                ['title' => 'Home Page', 'url' => url($city)],
+            ];
 
-        $page_title = ' Diagnostic Centre and Pathology Lab for Blood Test | Dr Lal PathLabs';
-        $page_description = '';
-        $breadcrumbs = [
-            ['title' => 'Home Page', 'url' => url($city)],
-        ];
+            $getcity = DB::table('cities')->whereRaw('LOWER(name) = LOWER(?)', [$city])->first();
+            $localityDataNew = [];
+            $cities = DB::table('cities')->where('status', 1)->get();
 
-        $getcity = DB::table('cities')->whereRaw('LOWER(name) = LOWER(?)', [$city])->first();
-        $localityDataNew = [];
-        $cities = DB::table('cities')->where('status', 1)->get();
+            if ($getcity) {
+                $localities = DB::table('locality')->where('city_id', $getcity->id)->take(40)->get();
+                $localityData = DB::table('centres')->where('city_name', $city)->paginate(6);
+                $page = DB::table('pages')->select('*')->where('page_url', $currentUrl)->first();
+                $localityOne = DB::table('locality')->select('*')->where('slug', $locality)->first();
+                if ($localityOne) {
+                    if ($cities != '' and $locality != '') {
+                        $localityDataNew = DB::table('centres')->where('city_name', $city)
+                            ->whereRaw('LOWER(locality) LIKE ?', ['%' . strtolower($localityOne->name) . '%'])
+                            ->paginate(6);
+                    }
+                }
+            } else {
+                $localities = [];
+            }
 
-        if ($getcity) {
-            $localities = DB::table('locality')->where('city_id', $getcity->id)->take(40)->get();
-            $localityData = DB::table('centres')->where('city_name', $city)->paginate(6);
-            $page = DB::table('pages')->select('*')->where('page_url', $currentUrl)->first();
-            $localityOne = DB::table('locality')->select('*')->where('slug', $locality)->first();
-            if ($localityOne) {
-                if ($cities != '' and $locality != '') {
-                    $localityDataNew = DB::table('centres')->where('city_name', $city)
-                        ->whereRaw('LOWER(locality) LIKE ?', ['%' . strtolower($localityOne->name) . '%'])
-                        ->paginate(6);
+            $localityData = count($localityDataNew) != 0 ? $localityDataNew ?? [] : $localityData ?? [];
+            $page = $page ?? [];
+            $localityOne = $localityOne ?? [];
+
+            if ($request->ajax()) {
+                return response()->json([
+                    'html' => view('frontend.page.data-load.locality-package', compact('localityData'))->render(),
+                    'nextPage' => $localityData->hasMorePages() ? $localityData->currentPage() + 1 : null,
+                    'hasMorePages' => $localityData->hasMorePages(),
+                ]);
+            }
+
+            $city_id = null;
+            foreach ($this->cities as $cityArray) {
+                if ($cityArray['name'] == $city) {
+                    $city_id = $cityArray['id'];
+                    break;
                 }
             }
-        } else {
-            $localities = [];
-        }
-
-        $localityData = count($localityDataNew) != 0 ? $localityDataNew ?? [] : $localityData ?? [];
-        $page = $page ?? [];
-        $localityOne = $localityOne ?? [];
-
-        if ($request->ajax()) {
-            return response()->json([
-                'html' => view('frontend.page.data-load.locality-package', compact('localityData'))->render(),
-                'nextPage' => $localityData->hasMorePages() ? $localityData->currentPage() + 1 : null,
-                'hasMorePages' => $localityData->hasMorePages(),
-            ]);
-        }
-
-        $city_id = null;
-        foreach ($this->cities as $cityArray) {
-            if ($cityArray['name'] == $city) {
-                $city_id = $cityArray['id'];
-                break;
+            if ($city_id == null) {
+                return redirect()->back()->with('error', 'Invalid Request');
             }
-        }
-        if ($city_id == null) {
-            return redirect()->back()->with('error', 'Invalid Request');
-        }
 
-        $testcontroller = new TestController();
-        $pageNo = $request->input('page') ?? 1;
+            $testcontroller = new TestController();
+            $pageNo = $request->input('page') ?? 1;
 
-        $tests = $this->safeApiCall(function () use ($testcontroller, $request, $city_id, $pageNo) {
-            return $testcontroller->getTestbyCityId($request, $city_id, $pageNo);
-        });
-        $result = json_decode($tests, true);
+            $tests = $this->safeApiCall(function () use ($testcontroller, $request, $city_id, $pageNo) {
+                return $testcontroller->getTestbyCityId($request, $city_id, $pageNo);
+            });
+            $result = json_decode($tests, true);
 
-        $packagelist = $this->safeApiCall(function () use ($testcontroller, $request, $city_id) {
-            return $testcontroller->packageList($request, $city_id, 1);
-        });
-        $packagelist = json_decode($packagelist, true);
+            $packagelist = $this->safeApiCall(function () use ($testcontroller, $request, $city_id) {
+                return $testcontroller->packageList($request, $city_id, 1);
+            });
+            $packagelist = json_decode($packagelist, true);
 
 
-        $pagination = $testcontroller->getTestbyCityId($request, $city_id, 1);
-        $pagination = json_decode($pagination, true);
+            $pagination = $testcontroller->getTestbyCityId($request, $city_id, 1);
+            $pagination = json_decode($pagination, true);
 
 
-        $category = $request->input('test_category');
-        $categorypagination = $testcontroller->getTestbyCategory($request, $city_id, $category);
-        $categoryWiseTest = json_decode($categorypagination, true);
+            return response()->json([
+                'status' => true,
+                'mesage' => 'Data successfully retrieved.',
+                'data' => [
+                    'result' => $result,
+                    'packagelist' => $packagelist,
+                    'pagination' => $pagination,
+                ],
+            ], 200);
+        } catch (\Exception $e) {
+    Log::error("FrontendController Error: " . $e->getMessage(), [
+        'trace' => $e->getTraceAsString(),
+        'city' => $city ?? null,
+        'url' => request()->fullUrl()
+    ]);
 
-
-
-
-        return response()->json([
-            'status' => true,
-            'mesage' => 'Data successfully retrieved.',
-            'data' => [
-                'result' =>  $category ?  $categoryWiseTest : $result,
-                'packagelist' =>  $category ?  $categoryWiseTest :$packagelist,
-                'pagination' =>  $category ?  $categoryWiseTest :$pagination,
-            ],
-        ], 200);
+    return response()->json([
+        'status' => false,
+        'mesage' => 'Temporary service issue. Please try again in a few seconds.',
+        'data' => null,
+        'debug' => app()->environment('local') ? $e->getMessage() : null
+    ], 503); // 503 = Service Unavailable (better than 402)
+}
     }
 
     public function testListSeo(Request $request, $city = null, $locality = null)
@@ -436,6 +448,9 @@ class FrontendController extends Controller
         if ($locality) {
             $currentUrl = $currentUrl . '/' . $locality;
         }
+
+        try {
+
             $page_title = ' Diagnostic Centre and Pathology Lab for Blood Test | Dr Lal PathLabs';
             $page_description = '';
             $breadcrumbs = [
@@ -614,12 +629,25 @@ class FrontendController extends Controller
                     'seo' => $seo_tags,
                 ],
             ], 200);
+        } catch (\Exception $e) {
+    Log::error("FrontendController Error: " . $e->getMessage(), [
+        'trace' => $e->getTraceAsString(),
+        'city' => $city ?? null,
+        'url' => request()->fullUrl()
+    ]);
 
+    return response()->json([
+        'status' => false,
+        'mesage' => 'Temporary service issue. Please try again in a few seconds.',
+        'data' => null,
+        'debug' => app()->environment('local') ? $e->getMessage() : null
+    ], 503); // 503 = Service Unavailable (better than 402)
+}
     }
 
     public function diseaseDetails(Request $request, $disease = null, $city = null, $locality = null)
     {
-
+        try {
             $currentUrl = 'https://www.lalpathlabs.com/test/disease/' . $disease . ($city ? '/' . $city : '');
 
             $city_id = null;
@@ -674,12 +702,25 @@ class FrontendController extends Controller
                     'pagination' => $pagination,
                 ],
             ], 200);
+        } catch (\Exception $e) {
+    Log::error("FrontendController Error: " . $e->getMessage(), [
+        'trace' => $e->getTraceAsString(),
+        'city' => $city ?? null,
+        'url' => request()->fullUrl()
+    ]);
 
+    return response()->json([
+        'status' => false,
+        'mesage' => 'Temporary service issue. Please try again in a few seconds.',
+        'data' => null,
+        'debug' => app()->environment('local') ? $e->getMessage() : null
+    ], 503); // 503 = Service Unavailable (better than 402)
+}
     }
 
     public function testDetails(Request $request, $slug = null, $city = null)
     {
-
+        try {
             $currentUrl = 'https://www.lalpathlabs.com/test/pathology/' . $slug . ($city ? '/' . $city : '');
 
             $city_id = null;
@@ -719,7 +760,7 @@ class FrontendController extends Controller
             $title = '';
 
 
-            // Fetch FAQs if test data is available
+             // Fetch FAQs if test data is available
             if ($result && isset($result['data']['result'][0]) && $result['data']['result'][0]['item_id']) {
                 $item_id = $result['data']['result'][0]['item_id'];
                 $title = $result['data']['result'][0]['item_name'];
@@ -764,7 +805,7 @@ class FrontendController extends Controller
             return response()->json([
                 'status' => true,
                 'data' => [
-                    'result' => $result,
+                   'result' => $result,
                     'page_title' => $page_title,
                     'breadcrumbs' => $breadcrumbs,
                     'cities' => $cities,
@@ -775,12 +816,25 @@ class FrontendController extends Controller
                     'seo' => $seo_tags,
                 ],
             ], 200);
+        } catch (\Exception $e) {
+    Log::error("FrontendController Error: " . $e->getMessage(), [
+        'trace' => $e->getTraceAsString(),
+        'city' => $city ?? null,
+        'url' => request()->fullUrl()
+    ]);
 
+    return response()->json([
+        'status' => false,
+        'mesage' => 'Temporary service issue. Please try again in a few seconds.',
+        'data' => null,
+        'debug' => app()->environment('local') ? $e->getMessage() : null
+    ], 503); // 503 = Service Unavailable (better than 402)
+}
     }
 
     public function testDetailsSeo(Request $request, $slug = null, $city = null)
     {
-
+        try {
             $currentUrl = 'https://www.lalpathlabs.com/test/' . 'pathology/' . $slug;
             if ($city) {
                 $currentUrl .= '/' . $city;
@@ -967,12 +1021,25 @@ class FrontendController extends Controller
                     'seo' => $seo_tags,
                 ],
             ], 200);
+        } catch (\Exception $e) {
+    Log::error("FrontendController Error: " . $e->getMessage(), [
+        'trace' => $e->getTraceAsString(),
+        'city' => $city ?? null,
+        'url' => request()->fullUrl()
+    ]);
 
+    return response()->json([
+        'status' => false,
+        'mesage' => 'Temporary service issue. Please try again in a few seconds.',
+        'data' => null,
+        'debug' => app()->environment('local') ? $e->getMessage() : null
+    ], 503); // 503 = Service Unavailable (better than 402)
+}
     }
 
     function sendEnquiry($request, $city)
     {
-
+        try {
             $otp = implode('', $request->otp);
             $name = $request->name;
             $number = $request->number;
@@ -1007,12 +1074,25 @@ class FrontendController extends Controller
             $response = curl_exec($curl);
             curl_close($curl);
             return json_decode($response, true);
+        } catch (\Exception $e) {
+    Log::error("FrontendController Error: " . $e->getMessage(), [
+        'trace' => $e->getTraceAsString(),
+        'city' => $city ?? null,
+        'url' => request()->fullUrl()
+    ]);
 
+    return response()->json([
+        'status' => false,
+        'mesage' => 'Temporary service issue. Please try again in a few seconds.',
+        'data' => null,
+        'debug' => app()->environment('local') ? $e->getMessage() : null
+    ], 503); // 503 = Service Unavailable (better than 402)
+}
     }
 
     public function getModule(Request $request)
     {
-
+        try {
             $module = Module::where('slug', $request->slug)->first();
             $page_title = $module->name;
             $page_description = 'enquiry';
@@ -1075,12 +1155,25 @@ class FrontendController extends Controller
                 return back()->with('success', 'Enquiry sent successfully.');
             }
             return view('frontend.page.enquiry', compact('page_title', 'page_description', 'breadcrumbs', 'module'));
+        } catch (\Exception $e) {
+    Log::error("FrontendController Error: " . $e->getMessage(), [
+        'trace' => $e->getTraceAsString(),
+        'city' => $city ?? null,
+        'url' => request()->fullUrl()
+    ]);
 
+    return response()->json([
+        'status' => false,
+        'mesage' => 'Temporary service issue. Please try again in a few seconds.',
+        'data' => null,
+        'debug' => app()->environment('local') ? $e->getMessage() : null
+    ], 503); // 503 = Service Unavailable (better than 402)
+}
     }
 
     public function faqList($item_id)
     {
-
+        try {
             $curl = curl_init();
             curl_setopt_array($curl, array(
                 CURLOPT_URL => 'https://admin-api.lalpathlabs.com/api/faqs/by-category',
@@ -1101,12 +1194,25 @@ class FrontendController extends Controller
             $response = curl_exec($curl);
             curl_close($curl);
             return $response;
+        } catch (\Exception $e) {
+    Log::error("FrontendController Error: " . $e->getMessage(), [
+        'trace' => $e->getTraceAsString(),
+        'city' => $city ?? null,
+        'url' => request()->fullUrl()
+    ]);
 
+    return response()->json([
+        'status' => false,
+        'mesage' => 'Temporary service issue. Please try again in a few seconds.',
+        'data' => null,
+        'debug' => app()->environment('local') ? $e->getMessage() : null
+    ], 503); // 503 = Service Unavailable (better than 402)
+}
     }
 
     public function globalSearch(Request $request)
     {
-
+        try {
             $search_string = $request->input('search_string');
             $city = $request->input('city');
             $city_id = null;
@@ -1129,7 +1235,20 @@ class FrontendController extends Controller
             });
 
             return json_decode($response, true);
-        
+        } catch (\Exception $e) {
+    Log::error("FrontendController Error: " . $e->getMessage(), [
+        'trace' => $e->getTraceAsString(),
+        'city' => $city ?? null,
+        'url' => request()->fullUrl()
+    ]);
+
+    return response()->json([
+        'status' => false,
+        'mesage' => 'Temporary service issue. Please try again in a few seconds.',
+        'data' => null,
+        'debug' => app()->environment('local') ? $e->getMessage() : null
+    ], 503); // 503 = Service Unavailable (better than 402)
+}
     }
 
     function thankYou()
@@ -1175,53 +1294,45 @@ class FrontendController extends Controller
 
     public function getcallBack(Request $request)
     {
-          // dd('getcallBack');
-            $phone = request('phone');
-            $city = request('city');
-            $this->validate($request, [
-                'phone' => 'digits:10',
-            ]);
-            if ($phone == null || $city == null) {
-                return redirect()->back()->with('error', 'Invalid Request');
-            }
+        $phone = $request->input('phone');
+        $city = $request->input('city');
+        $this->validate($request, ['phone' => 'digits:10']);
+        if (!$phone || !$city) {
+            return redirect()->back()->with('error', 'Invalid Request');
+        }
 
-            $page = $request->page ? $request->page : '';
-            if ($phone == null || $city == null) {
-                return redirect()->back()->with('error', 'Invalid Request');
-            }
-            $data = [
-                'name' => 'Guest',
-                'number' => $phone,
-                'city' => $city,
-                'page' => $page,
-                'form' => 'Request call back form',
-                'status' => 1,
-                'created_at' => date('Y-m-d H:i:s'),
-                'updated_at' => date('Y-m-d H:i:s')
-            ];
-            // Insert data into the specified table
-            $data = DB::table('enquiries')->insert($data);
-            //  DB::getPdo()->lastInsertId();
-            DB::commit();
+        $data = [
+            'name' => 'Guest',
+            'number' => $phone,
+            'city' => $city,
+            'page' => $request->page ?? '',
+            'form' => 'Request call back form',
+            'status' => 1,
+            'created_at' => now(),
+            'updated_at' => now()
+        ];
+        DB::table('enquiries')->insert($data);
 
-            $curl = curl_init();
-            curl_setopt_array($curl, array(
-                CURLOPT_URL => 'https://admin-api.lalpathlabs.com/api/enquiry/homecollectionlead',
-                CURLOPT_RETURNTRANSFER => true,
-                CURLOPT_ENCODING => '',
-                CURLOPT_MAXREDIRS => 10,
-                CURLOPT_TIMEOUT => 0,
-                CURLOPT_FOLLOWLOCATION => true,
-                CURLOPT_HTTP_VERSION => CURL_HTTP_VERSION_1_1,
-                CURLOPT_SSL_VERIFYPEER => false,
-                CURLOPT_CUSTOMREQUEST => 'POST',
-                CURLOPT_POSTFIELDS => array('PatientName' => 'Guest', 'PhoneNumber' => $phone, 'Otp' => '', 'City' => $city, 'MarketingLead' => 'true', 'token' => 'null', 'UtmCampaign' => '', 'UtmMedium' => '', 'UtmSource' => '', 'Fbclid' => '', 'Vendor' => 'SEO_Page', 'opt' => 'true', 'tc' => 'true'),
-            ));
-            $response = curl_exec($curl);
-            curl_close($curl);
+        $curl = curl_init();
+        curl_setopt_array($curl, array(
+            CURLOPT_URL => 'https://liveapi.lalpathlabs.com/api/Common/homecollectionchemistlead',
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_CUSTOMREQUEST => 'POST',
+            CURLOPT_POSTFIELDS => array(
+                'PatientName' => 'Guest',
+                'PhoneNumber' => $phone,
+                'Otp' => '',
+                'City' => $city,
+                'MarketingLead' => 'true',
+                'Vendor' => 'SEO_Page',
+                'opt' => 'true',
+                'tc' => 'true'
+            ),
+        ));
+        curl_exec($curl);
+        curl_close($curl);
 
-
-            return response()->json($response)->header('Access-Control-Allow-Origin', '*');
+        return response()->json(['status' => true, 'message' => 'Callback requested']);
     }
 
     public function  callBackTest()
@@ -1274,133 +1385,4 @@ class FrontendController extends Controller
             'data' => ['result' => $cities],
         ], 200);
     }
-
-    
-    /**
-     * Get direct sample report PDF link (returns only the URL as plain text)
-     * Route: GET /api/sample-report-url?type=M&value={encoded_blob_url}
-     */
-    public function getSampleReportUrl(Request $request)
-    {
-        $request->validate([
-            'type'  => 'required|string|in:M,I',
-            'value' => 'required|string',
-        ]);
-
-        $type  = $request->query('type');
-        $value = $request->query('value');
-
-        // Get token
-        $testController = app(TestController::class);
-        $sigData = $testController->generateSignature($request, []);
-        $xAuthToken = $sigData['x-auth-token'];
-
-        // Generate nonce only (no signature)
-        $nonce = rand(100000, 999999);
-
-        $apiUrl = 'https://1xviewapimaster.lalpathlabs.com/v1/pre-signed-url?' . http_build_query([
-            'type'  => $type,
-            'value' => $value,
-        ]);
-
-        $headers = [
-            'accept: application/json, text/plain, */*',
-            'accept-language: en',
-            'content-type: application/json',
-            'data_area_id: live',
-            'origin: https://www.lalpathlabs.com',
-            'referer: https://www.lalpathlabs.com/',
-            'user-agent: Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36',
-            'x-app-id: 4a297e9d970d42eeb6c0d07d198cd31c',
-            'x-auth-token: ' . $xAuthToken,
-            'x-device-type: WEB',
-            'x-language: en',
-            'x-source: 7',
-            'x-timezone: -330',
-            'x-signature-version: v2',
-            'x-nonce: ' . (string)$nonce,   // ← added back
-            // Do NOT send x-signature yet
-        ];
-
-        $ch = curl_init();
-        curl_setopt_array($ch, [
-            CURLOPT_URL            => $apiUrl,
-            CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_HTTPHEADER     => $headers,
-            CURLOPT_TIMEOUT        => 30,
-            CURLOPT_FOLLOWLOCATION => true,
-            CURLOPT_SSL_VERIFYPEER => false,
-            CURLOPT_SSL_VERIFYHOST => false,
-        ]);
-
-        $response = curl_exec($ch);
-        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        $error = curl_error($ch);
-        curl_close($ch);
-
-        $data = json_decode($response, true);
-        return $data;
-    }
-   
-    public function testCategory()
-    {
-        try {
-            $response = Http::withHeaders([
-                'accept'             => 'application/json, text/plain, */*',
-                'accept-language'    => 'en-US,en;q=0.9',
-                'cache-control'      => 'no-cache',
-                'data_area_id'       => 'live',
-                'origin'             => 'https://uat-web.lalpathlabs.com',
-                'pragma'             => 'no-cache',
-                'priority'           => 'u=1, i',
-                'sec-ch-ua'          => '"Google Chrome";v="143", "Chromium";v="143", "Not=A?Brand";v="24"',
-                'sec-ch-ua-mobile'   => '?0',
-                'sec-ch-ua-platform' => '"Windows"',
-                'sec-fetch-dest'     => 'empty',
-                'sec-fetch-mode'     => 'cors',
-                'sec-fetch-site'     => 'cross-site',
-                'user-agent'         => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36',
-                'x-app-id'           => 'a0a2f89b65824648a0c38e7f04d95470',
-                'x-app-version'      => 'v1.4.12.5',
-                'x-auth-token'       => '',                 // ← Add real token if needed
-                'x-device-type'      => 'WEB',
-                'x-language'         => 'en',
-                'x-nonce'            => '139128',           // ← Usually dynamic - generate if needed
-                'x-signature'        => 'dde6ccaf875dc2950657108f73dd99a5', // ← Dynamic in real case
-                'x-signature-version' => 'v2',
-                'x-source'           => '7',
-                'x-timezone'         => '-330',
-            ])
-                ->withoutVerifying() // Optional: Skip SSL verification in UAT (remove in production)
-                ->get('https://uat1xviewmaster.drlallab.com/v1/test/categories');
-
-            if ($response->successful()) {
-                return response()->json([
-                    'success'  => true,
-                    'data'     => $response->json(),
-                    'status'   => $response->status()
-                ]);
-            }
-
-            // Handle failed response
-            return response()->json([
-                'success' => false,
-                'message' => 'API request failed',
-                'status'  => $response->status(),
-                'error'   => $response->body()
-            ], $response->status());
-        } catch (\Exception $e) {
-            Log::error('Failed to fetch categories from external API', [
-                'error'   => $e->getMessage(),
-                'trace'   => $e->getTraceAsString()
-            ]);
-
-            return response()->json([
-                'success' => false,
-                'message' => 'Server error while fetching data',
-                'error'   => $e->getMessage()
-            ], 500);
-        }
-    }
-
 }

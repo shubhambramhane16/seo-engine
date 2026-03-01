@@ -52,8 +52,8 @@ class PageController extends Controller
                     $search = $request->get('search')['value'];
                     $query->where(function ($q) use ($search) {
                         $q->where('page_name', 'like', "%{$search}%")
-                          ->orWhere('slug', 'like', "%{$search}%")
-                          ->orWhere('seo_title', 'like', "%{$search}%");
+                            ->orWhere('slug', 'like', "%{$search}%")
+                            ->orWhere('seo_title', 'like', "%{$search}%");
                     });
                 }
 
@@ -96,7 +96,7 @@ class PageController extends Controller
                     $actions = '<a href="' . url('/admin/page/edit/' . $page->id) . '" class="btn btn-sm btn-clean btn-icon" title="Edit details" data-toggle="tooltip">
                         <i class="la la-edit"></i>
                     </a>
-                    <a href="' . url('/admin/page/delete/' . $page->id) . '" class="btn btn-sm btn-clean btn-icon" title="Delete" data-toggle="tooltip">
+                    <a href="' . url('/admin/page/delete/' . $page->id) . '" class="btn btn-sm btn-clean d-none btn-icon" title="Delete" data-toggle="tooltip">
                         <i class="la la-trash"></i>
                     </a>';
 
@@ -128,144 +128,180 @@ class PageController extends Controller
         }
     }
 
+    /**
+     * Handles the addition of new pages based on a specific rule.
+     *
+     * @param Request $request
+     * @return \Illuminate\Http\RedirectResponse|\Illuminate\View\View
+     */
     public function add(Request $request)
     {
-        try {
-            if ($request->isMethod('post')) {
-                // dd($request->all());
-                set_time_limit(0);
-                ini_set('memory_limit', '-1');
-                $validator = Validator::make($request->all(), [
-                    'rule_id' => 'required',
-                    'city_id' => 'required',
-                    'number_of_combination' => 'required',
-                ], [
-                    'rule_id.required' => 'Rule is required.',
-                    'city_id.required' => 'City is required.',
-                    'number_of_combination.required' => 'Number of combination is required.',
-                    'rule_id.unique' => 'Rule already exists.',
-                ]);
-                if ($validator->fails()) {
-                    return redirect()->back()->withErrors($validator->errors())->withInput($request->all());
-                }
-                DB::beginTransaction();
+       if ($request->isMethod('post')) {
+            // Validation update - city_id bhi required kar do agar mandatory hai
+            $validator = Validator::make($request->all(), [
+                'rule_id' => 'required|exists:rules,id',
+                'city_id' => 'required|exists:cities,id',  // Add this
+                'number_of_combination' => 'required|integer|min:1',
+            ], [
+                'rule_id.required' => 'Rule is required.',
+                'city_id.required' => 'Please select a city.',
+                'number_of_combination.required' => 'Number of combination is required.',
+            ]);
 
-
-                $array = [
-                    'rule_id' => $request->rule_id,
-                    // 'city_id' => $request->city_id,
-                    'no_of_pages' => $request->number_of_combination,
-                    'created_by' => auth()->user()->id,
-                ];
-                // dd($array);
-                $response = PagesHistory::updateOrCreate($array);
-                $rule = Rules::where('id', $request->rule_id)->first();
-
-                // if rule->properties having  first city and then locality ["item-name","city-name"] then select only city and locality from below models if first locality and then city then select only locality and city from below models if first category and then items then select only category and items from below models
-                $models = [City::class, Locality::class, Category::class, Items::class];
-                if ($rule->properties) {
-                    $properties = json_decode($rule->properties);
-                    $models = [];
-                    foreach ($properties as $property) {
-                        if ($property == 'city-name') {
-                            $models[] = City::class;
-                        } elseif ($property == 'locality-name') {
-                            $models[] = Locality::class;
-                        } elseif ($property == 'category-name') {
-                            $models[] = Category::class;
-                        } elseif ($property == 'item-name') {
-                            $models[] = Items::class;
-                        }
-                    }
-                }
-                // dd($models);
-                $data = [];
-
-                foreach ($models as $model) {
-                    if ($model == Category::class) {
-                        // if category then select category_name as a slug in small case and replace space with hyphen
-                        $data[] = $model::where('status', 1)->where('parent_id', '!=', 0)->where('category_name', '!=', '')->pluck('category_name')->map(function ($name) {
-                            return strtolower(str_replace(' ', '-', $name));
-                        })->toArray();
-                        continue;
-                    }
-                    if($model == City::class){
-                        // if city then select only selected city from city_id
-                        $data[] = $model::where('status', 1)->where('slug', '!=', '')->where('id', $request->city_id)->pluck('slug')->toArray();
-                        continue;
-                    }
-                    $data[] = $model::where('status', 1)->where('slug', '!=', '')->pluck('slug')->toArray();
-                }
-                // dd($data);
-                if ($rule) {
-                    $properties = json_decode($rule->properties);
-                    $propertiesArray = [];
-
-                    foreach ($properties as $key => $property) {
-                        if (!isset($data[$key])) {
-                            continue;
-                        }
-
-                        $previousArray = $key > 0 ? $propertiesArray[$key - 1] : [];
-
-                        foreach ($data[$key] as $slug) {
-                            // return $slug;
-                            if ($previousArray) {
-                                foreach ($previousArray as $prevSlug) {
-                                    // Modify this line to concatenate slugs in the desired order
-                                    $propertiesArray[$key][] = $prevSlug . '/' . $slug;
-                                }
-                            } else {
-                                $propertiesArray[$key][] = $slug;
-                            }
-                        }
-                    }
-
-                    $lastArray = end($propertiesArray);
-                    // dd($lastArray);
-                    foreach ($lastArray as $newSlug) {
-                        $dumpArray = [
-                            'page_name' => ucwords(str_replace('-', ' ', $newSlug)),
-                            'rule_id' => $request->rule_id,
-                            'slug' => $rule->prefix . '/' . $newSlug,
-                            'page_url' => env('FRONTENT_URI') . $rule->prefix . '/' . $newSlug,
-                            'created_by' => auth()->user()->id,
-                            'status' => 1,
-                        ];
-
-                        // return $dumpArray;
-                        // Pages::updateOrCreate(['slug' => $newSlug], $dumpArray);
-                        Pages::updateOrCreate(['slug' => $dumpArray['slug']], $dumpArray);
-                    }
-                }
-                // dd($propertiesArray);
-
-
-                DB::commit();
-                return redirect('admin/page/list')->with('success', 'Page added successfully.');
+            if ($validator->fails()) {
+                return redirect()->back()
+                    ->withErrors($validator)
+                    ->withInput();
             }
 
-            $page_title = 'Page Management';
-            $page_description = 'Add Page';
+            DB::beginTransaction();
 
+            try {
+                // History record
+                PagesHistory::updateOrCreate([
+                    'rule_id' => $request->rule_id
+                ], [
+                    'no_of_pages' => $request->number_of_combination,
+                    'created_by' => auth()->user()->id,
+                ]);
+
+                $rule = Rules::findOrFail($request->rule_id);
+
+                $properties = $rule->properties ? json_decode($rule->properties, true) : [];
+
+                $models = [];
+                foreach ($properties as $property) {
+                    $models[] = match ($property) {
+                        'city-name' => City::class,
+                        'locality-name' => Locality::class,
+                        'category-name' => Category::class,
+                        'item-name' => Items::class,
+                        default => null,
+                    };
+                }
+                $models = array_filter($models);
+
+                $data = [];
+                $selectedCityId = $request->city_id;
+
+                foreach ($models as $model) {
+                    $query = $model::where('status', 1);
+
+                    // Important: City aur Locality ko selected city se filter karo
+                    if ($model == City::class) {
+                        $query->where('id', $selectedCityId); // Sirf selected city
+                    } elseif ($model == Locality::class) {
+                        $query->where('city_id', $selectedCityId); // Us city ki localities
+                    }
+                    // Category aur Items usually city-independent hote hain, to unko waise hi rakho
+
+                    if ($model == Category::class) {
+                        $items = $query->where('parent_id', '!=', 0)
+                                    ->pluck('category_name')
+                                    ->map(fn($name) => strtolower(str_replace(' ', '-', $name)))
+                                    ->toArray();
+                    } else {
+                        $items = $query->pluck('slug')
+                                    ->filter()
+                                    ->toArray();
+                    }
+
+                    // Agar koi data nahi mila to empty array, warna combinations zero ho jayenge
+                    $data[] = $items ?: [];
+                }
+
+                // Agar koi bhi array empty hai aur rule mein wo property hai, to warning ya limit check
+                $expectedCombinations = !empty($data) ? array_product(array_map('count', $data)) : 0;
+
+                if ($expectedCombinations > $request->number_of_combination) {
+                    // Optional: Limit combinations if user asked for less
+                    // Ya phir error de sakte ho
+                }
+
+                // Cartesian product
+                $combinations = !empty($data) ? $this->cartesianProduct($data) : [];
+
+                // Limit to user-requested number
+                $combinations = array_slice($combinations, 0, $request->number_of_combination);
+
+                $pagesToUpsert = [];
+                foreach ($combinations as $combination) {
+                    $slugPath = implode('/', $combination);
+                    $fullSlug = $rule->prefix . '/' . $slugPath;
+
+                    $pagesToUpsert[] = [
+                        'page_name' => ucwords(str_replace('-', ' ', $slugPath)),
+                        'rule_id' => $request->rule_id,
+                        'slug' => $fullSlug,
+                        'page_url' => env('FRONTENT_URI') . $fullSlug,
+                        'created_by' => auth()->user()->id,
+                        'status' => 1,
+                        'created_at' => now(),
+                        'updated_at' => now(),
+                    ];
+                }
+
+                if (!empty($pagesToUpsert)) {
+                    // Pages::upsert();
+                    // return $pagesToUpsert;
+                    Pages::upsert(
+                         $pagesToUpsert,           // The data to insert/update
+                        ['slug'],                 // The unique column(s) to check for duplicates
+                        ['updated_at']
+                    );
+                }
+
+                DB::commit();
+                 return redirect('admin/page/list')->with('success', 'Pages generated successfully.');
+
+
+            } catch (\Exception $e) {
+                DB::rollback();
+                \Log::error('Page Generation Failed: ' . $e->getMessage());
+                return redirect()->back()->withErrors(['error' => 'Failed to generate pages: ' . $e->getMessage()]);
+            }
+         }
+            // Display the "Add Page" form
             $pageSettings = $this->pageSetting('add');
-
-            $page_title =  $pageSettings['page_title'];
-            $page_description = $pageSettings['page_description'];
-            $breadcrumbs = $pageSettings['breadcrumbs'];
-            $rules = Rules::orderBy('id', 'desc')->where('status',1)->get();
+            $rules = Rules::orderBy('id', 'desc')->where('status', 1)->get();
             $pagesHistory = PagesHistory::orderBy('id', 'desc')->get();
-            return view('admin.pages.page.add', compact('page_title', 'page_description', 'breadcrumbs', 'rules', 'pagesHistory'));
-        } catch (\Exception $e) {
-            DB::rollback();
-            return redirect()->back()->withErrors($e->getMessage());
-        }
+
+            return view('admin.pages.page.add', [
+                'page_title' => $pageSettings['page_title'],
+                'page_description' => $pageSettings['page_description'],
+                'breadcrumbs' => $pageSettings['breadcrumbs'],
+                'rules' => $rules,
+                'pagesHistory' => $pagesHistory,
+            ]);
+
     }
 
-
-
-
-
+    /**
+     * Calculates the cartesian product of a set of arrays.
+     * Helper function to generate all combinations.
+     *
+     * @param array $arrays
+     * @return array
+     */
+    private function cartesianProduct(array $arrays)
+    {
+        if (!$arrays) {
+            return [];
+        }
+        $result = [[]];
+        foreach ($arrays as $key => $values) {
+            $append = [];
+            foreach ($result as $product) {
+                foreach ($values as $value) {
+                    $product[$key] = $value;
+                    $append[] = $product;
+                }
+            }
+            $result = $append;
+        }
+        // Flatten the resulting multi-dimensional array into simple arrays of values
+        return array_map(fn($item) => array_values($item), $result);
+    }
 
 
     public function edit(Request $request, $id)

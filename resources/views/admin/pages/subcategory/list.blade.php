@@ -68,7 +68,7 @@
                         </a>
                         <a href="javascript:void(0)" data-url="{{url('/admin/subcategories/delete/'.$value->id)}}" class="btn btn-sm btn-clean btn-icon" data-toggle="tooltip" title="Delete category" onclick="deleteItem(this)">
                             <i class="la la-trash"></i>
-                        </a>
+                        </a> 
                     </td>
                 </tr>
                 @endforeach
