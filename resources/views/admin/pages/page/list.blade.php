@@ -11,8 +11,10 @@
         <div class="card-toolbar">
             {{-- @include('admin.layout.partials.filters.common-filter') --}}
             <!--begin::Button-->
+            @if(!empty($canAccessGenerator) && $canAccessGenerator)
             <a href="{{url('/admin/page/add')}}" class="btn btn-primary font-weight-bolder">
                 <i class="la la-plus"></i> Generator </a>
+            @endif
             <a href="{{url('/admin/page/approval-requests')}}" class="btn btn-warning font-weight-bolder ml-2">
                 <i class="la la-check"></i> Approval Requests </a>
             <!--end::Button-->

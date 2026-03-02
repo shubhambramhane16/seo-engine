@@ -60,6 +60,17 @@
                                     <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
                                 </select>
                             </div>
+
+                            <div class="form-group col-md-6">
+                                <label class="d-block">Page Generator Access</label>
+                                <input type="hidden" name="can_access_page_generator" value="0">
+                                <span class="switch switch-outline switch-icon switch-success">
+                                    <label>
+                                        <input type="checkbox" name="can_access_page_generator" value="1" <?php echo e(old('can_access_page_generator', optional($details->approvalHierarchy)->can_access_page_generator) ? 'checked' : ''); ?>>
+                                        <span></span>
+                                    </label>
+                                </span>
+                            </div>
                             <?php endif; ?>
                             <div class="form-group col-md-12">
                                 <center><button class="btn btn-success">Update</button></center>

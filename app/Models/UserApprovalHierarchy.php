@@ -12,8 +12,13 @@ class UserApprovalHierarchy extends Model
         'user_id',
         'manager_id',
         'admin_id',
+        'can_access_page_generator',
         'created_by',
         'updated_by',
+    ];
+
+    protected $casts = [
+        'can_access_page_generator' => 'boolean',
     ];
 
     public function user()

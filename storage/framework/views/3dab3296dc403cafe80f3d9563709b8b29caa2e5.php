@@ -9,8 +9,10 @@
         <div class="card-toolbar">
             
             <!--begin::Button-->
+            <?php if(!empty($canAccessGenerator) && $canAccessGenerator): ?>
             <a href="<?php echo e(url('/admin/page/add')); ?>" class="btn btn-primary font-weight-bolder">
                 <i class="la la-plus"></i> Generator </a>
+            <?php endif; ?>
             <a href="<?php echo e(url('/admin/page/approval-requests')); ?>" class="btn btn-warning font-weight-bolder ml-2">
                 <i class="la la-check"></i> Approval Requests </a>
             <!--end::Button-->

@@ -32,6 +32,7 @@ class UserController extends Controller
   {
     $managerId = $request->reporting_manager_id ?: null;
     $adminId = $request->admin_approver_id ?: null;
+    $canAccessPageGenerator = $request->boolean('can_access_page_generator');
 
     if ($managerId && $managerId == $userId) {
       return 'User cannot be their own reporting manager.';
@@ -50,6 +51,7 @@ class UserController extends Controller
     ], [
       'manager_id' => $managerId,
       'admin_id' => $adminId,
+      'can_access_page_generator' => $canAccessPageGenerator,
       'updated_by' => auth()->user()->id,
       'created_by' => auth()->user()->id,
     ]);

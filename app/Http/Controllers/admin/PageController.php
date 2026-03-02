@@ -71,6 +71,17 @@ class PageController extends Controller
         return '<span class="label label-lg font-weight-bold label-secondary label-inline">Draft</span>';
     }
 
+    private function canAccessGenerator($user)
+    {
+        if ($this->isSuperAdmin($user)) {
+            return true;
+        }
+
+        return UserApprovalHierarchy::where('user_id', $user->id)
+            ->where('can_access_page_generator', 1)
+            ->exists();
+    }
+
     public function index(Request $request)
     {
         try {
@@ -172,7 +183,10 @@ class PageController extends Controller
             }
 
             // Regular page load
-            return view('admin.pages.page.list', compact('page_title', 'page_description', 'breadcrumbs'));
+            $currentUser = auth()->user()->load('role');
+            $canAccessGenerator = $this->canAccessGenerator($currentUser);
+
+            return view('admin.pages.page.list', compact('page_title', 'page_description', 'breadcrumbs', 'canAccessGenerator'));
         } catch (\Exception $e) {
             if ($request->ajax()) {
                 return response()->json(['error' => $e->getMessage()], 500);
@@ -189,6 +203,11 @@ class PageController extends Controller
      */
     public function add(Request $request)
     {
+          $currentUser = auth()->user()->load('role');
+          if (!$this->canAccessGenerator($currentUser)) {
+              return redirect('admin/page/list')->withErrors(['You are not authorized to access page generator. Please contact Super Admin.']);
+          }
+
        if ($request->isMethod('post')) {
             // Validation update - city_id bhi required kar do agar mandatory hai
             $validator = Validator::make($request->all(), [
