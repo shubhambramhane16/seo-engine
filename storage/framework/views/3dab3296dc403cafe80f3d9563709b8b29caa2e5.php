@@ -11,6 +11,8 @@
             <!--begin::Button-->
             <a href="<?php echo e(url('/admin/page/add')); ?>" class="btn btn-primary font-weight-bolder">
                 <i class="la la-plus"></i> Generator </a>
+            <a href="<?php echo e(url('/admin/page/approval-requests')); ?>" class="btn btn-warning font-weight-bolder ml-2">
+                <i class="la la-check"></i> Approval Requests </a>
             <!--end::Button-->
         </div>
         <div class="w-100">
@@ -46,6 +48,7 @@
                     <th>Page Reference</th>
                     <th>Slug Name</th>
                     <th>Meta Title</th>
+                    <th>Approval Status</th>
                     <th>Status</th>
                     <th>Action</th>
                 </tr>
@@ -92,6 +95,7 @@
                 { data: 'page_name', name: 'page_name', orderable: true },
                 { data: 'slug', name: 'slug', orderable: true },
                 { data: 'meta_title', name: 'seo_title', orderable: true },
+                { data: 'approval_status', name: 'approval_status', orderable: false, searchable: false },
                 { data: 'status', name: 'status', orderable: true, searchable: false },
                 { data: 'action', name: 'action', orderable: false, searchable: false }
             ],

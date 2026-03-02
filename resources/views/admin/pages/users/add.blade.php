@@ -39,6 +39,28 @@
                                     @endif
                                 </select>
                             </div>
+
+                            @if(!empty($isSuperAdmin) && $isSuperAdmin)
+                            <div class="form-group col-md-6">
+                                <label>Reporting Manager</label>
+                                <select class="form-control" name="reporting_manager_id">
+                                    <option value="">Select Reporting Manager</option>
+                                    @foreach($approvers as $approver)
+                                    <option value="{{$approver->id}}" {{runTimeSelection(old('reporting_manager_id'),$approver->id)}}>{{$approver->name}} ({{$approver->email}})</option>
+                                    @endforeach
+                                </select>
+                            </div>
+
+                            <div class="form-group col-md-6">
+                                <label>Final Approver (Admin)</label>
+                                <select class="form-control" name="admin_approver_id">
+                                    <option value="">Select Final Approver</option>
+                                    @foreach($approvers as $approver)
+                                    <option value="{{$approver->id}}" {{runTimeSelection(old('admin_approver_id'),$approver->id)}}>{{$approver->name}} ({{$approver->email}})</option>
+                                    @endforeach
+                                </select>
+                            </div>
+                            @endif
                             <div class="form-group col-md-12">
                                 <center><button class="btn btn-success">Submit</button></center>
                             </div>

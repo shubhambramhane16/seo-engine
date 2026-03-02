@@ -37,7 +37,7 @@
         @if (config('layout.aside.self.display') === false)
             <div class="header-logo">
                 <a href="{{ url('/') }}">
-                   
+
 
                     <img alt="{{ config('app.name') }}" src="{{ asset('media/logos/' . $kt_logo_image) }}" />
                 </a>
@@ -87,6 +87,16 @@
                             </svg>
                         </span>
                         <span class="menu-text">Pages</span>
+                    </a>
+                </li>
+
+                <li class="menu-item menu-item-submenu   @yield('pagemaster')" aria-haspopup="true"
+                    data-menu-toggle="hover">
+                    <a href="{{ url('/admin/page/approval-requests') }}" class="menu-link menu-toggle">
+                        <span class="svg-icon menu-icon">
+                            <span class="flaticon2-check-mark"></span>
+                        </span>
+                        <span class="menu-text">Approval Requests</span>
                     </a>
                 </li>
                 @endif    @endif
@@ -143,7 +153,7 @@
                       @endif
                 @endif
 
-                @if  (isset($systemRolesArray['city']) || isset($systemRolesArray['state']) || isset($systemRolesArray['locality']))  
+                @if  (isset($systemRolesArray['city']) || isset($systemRolesArray['state']) || isset($systemRolesArray['locality']))
                   @if  (($systemRolesArray['city'])!=0 || ($systemRolesArray['state'])!=0 || ($systemRolesArray['locality'])!=0)
 
                 <li class="menu-item menu-item-submenu  @yield('statemaster')  @yield('citymaster') @yield('localitymaster') "
@@ -175,7 +185,7 @@
                                 </a>
                             </li>
                             @endif
-                @if  ($systemRolesArray['city']!=0) 
+                @if  ($systemRolesArray['city']!=0)
                             <li class="menu-item @yield('citymaster')" aria-haspopup="true" data-menu-toggle="hover">
                                 <a href="{{ url('/admin/city/list') }}" class="menu-link menu-toggle">
                                     <i class="menu-bullet menu-bullet-line"><span></span></i>
@@ -183,7 +193,7 @@
                                 </a>
                             </li>
                 @endif
-                @if  ($systemRolesArray['locality']!=0) 
+                @if  ($systemRolesArray['locality']!=0)
 
                             <li class="menu-item @yield('localitymaster')" aria-haspopup="true" data-menu-toggle="hover">
                                 <a href="{{ url('/admin/locality/list') }}" class="menu-link menu-toggle">
@@ -325,7 +335,7 @@
                 @endif
                 @if  (isset($systemRolesArray['rules']))
                      @if  ($systemRolesArray['rules']!=0)
-                    {{--  
+                    {{--
                   <li class="menu-item menu-item-submenu  @yield('modulemaster')" aria-haspopup="true" data-menu-toggle="hover">
                     <a href="{{ url('/admin/module/list') }}" class="menu-link menu-toggle">
                         <span class="svg-icon menu-icon">
@@ -409,7 +419,7 @@
                     <h4 class="menu-text">Settings</h4>
                     <i class="menu-icon ki ki-bold-more-hor icon-md"></i>
                 </li> -->
-                
+
                 @if  (isset($systemRolesArray['settings']))
                      @if  (($systemRolesArray['settings'])!=0)
                 <li class="menu-item menu-item-submenu  @yield('settings')" aria-haspopup="true"

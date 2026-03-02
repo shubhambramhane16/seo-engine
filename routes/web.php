@@ -53,6 +53,10 @@ Route::group(['prefix' => 'admin', 'namespace' => 'admin', 'middleware' => 'Chec
     Route::any('/page/edit/{id}', 'PageController@edit');
     Route::any('/page/delete/{id}', 'PageController@delete');
     Route::any('/page/update-status/{id}/{status}', 'PageController@updateStatus');
+    Route::get('/page/approval-requests', 'PageApprovalController@index');
+    Route::get('/page/approval-requests/{id}', 'PageApprovalController@review');
+    Route::post('/page/approval-requests/{id}/approve', 'PageApprovalController@approve');
+    Route::post('/page/approval-requests/{id}/reject', 'PageApprovalController@reject');
 
 
     /**
@@ -259,7 +263,7 @@ Route::get('/refresh-guest-token', function () {
         $request = request();
         $response = $auth->loginbyGuest($request);
         $data = json_decode($response, true);
-        
+
         if (!empty($data['data']['token'])) {
             $newToken = $data['data']['token'];
             Cache::put('guest_token6', $newToken, now()->addMinutes(50));

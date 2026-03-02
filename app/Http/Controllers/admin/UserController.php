@@ -6,6 +6,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use App\Http\Controllers\Controller;
 use App\Models\User;
+use App\Models\UserApprovalHierarchy;
 use DB;
 use Validator;
 use Image;
@@ -13,9 +14,49 @@ use File;
 use Auth;
 use Session;
 use Redirect;
+use Illuminate\Support\Str;
 
 class UserController extends Controller
 {
+  private function isSuperAdmin($user)
+  {
+    if (!$user || !$user->role) {
+      return false;
+    }
+
+    $roleTitle = strtolower(trim($user->role->role));
+    return $roleTitle === 'super admin' || $roleTitle === 'superadmin' || Str::contains($roleTitle, 'super');
+  }
+
+  private function saveApprovalHierarchy($userId, Request $request)
+  {
+    $managerId = $request->reporting_manager_id ?: null;
+    $adminId = $request->admin_approver_id ?: null;
+
+    if ($managerId && $managerId == $userId) {
+      return 'User cannot be their own reporting manager.';
+    }
+
+    if ($adminId && $adminId == $userId) {
+      return 'User cannot be their own final approver.';
+    }
+
+    if ($managerId && $adminId && $managerId == $adminId) {
+      return 'Reporting manager and final approver must be different users.';
+    }
+
+    UserApprovalHierarchy::updateOrCreate([
+      'user_id' => $userId,
+    ], [
+      'manager_id' => $managerId,
+      'admin_id' => $adminId,
+      'updated_by' => auth()->user()->id,
+      'created_by' => auth()->user()->id,
+    ]);
+
+    return null;
+  }
+
   /**
    * Load admin login page
    * @method index
@@ -37,13 +78,16 @@ class UserController extends Controller
       if ($status == '0') {
         $status = '2';
       }
-      $users = User::with(['role'])->when($status, function ($users) use ($status) {
+      $currentUser = auth()->user()->load('role');
+      $isSuperAdmin = $this->isSuperAdmin($currentUser);
+
+      $users = User::with(['role', 'approvalHierarchy.manager', 'approvalHierarchy.admin'])->when($status, function ($users) use ($status) {
         if ($status != '-1') {
           $status = conditionalStatus($status);
           $users->where('status', '=', $status);
         }
       })->orderBy('id', 'desc')->get();
-      return view('admin.pages.users.list', compact('page_title', 'page_description', 'breadcrumbs',  'users'));
+      return view('admin.pages.users.list', compact('page_title', 'page_description', 'breadcrumbs',  'users', 'isSuperAdmin'));
     } catch (\Exception $e) {
       dd($e);
       return redirect()->back()->with('error', $e->getMessage());
@@ -100,6 +144,16 @@ class UserController extends Controller
         }
         // dd(  $array );
         $response = User::UpdateOrCreate(['id' => null], $array);
+
+        $isSuperAdmin = $this->isSuperAdmin(auth()->user()->load('role'));
+        if ($isSuperAdmin) {
+          $hierarchyError = $this->saveApprovalHierarchy($response->id, $request);
+          if ($hierarchyError) {
+            DB::rollback();
+            return redirect()->back()->withErrors([$hierarchyError])->withInput($request->all());
+          }
+        }
+
         DB::commit();
         return redirect('admin/users/list')->with('success', 'User details added successfully.');
       }
@@ -110,7 +164,9 @@ class UserController extends Controller
       $page_description = $pageSettings['page_description'];
       $breadcrumbs = $pageSettings['breadcrumbs'];
 
-      return view('admin.pages.users.add', compact('page_title', 'page_description', 'breadcrumbs'));
+      $isSuperAdmin = $this->isSuperAdmin(auth()->user()->load('role'));
+      $approvers = User::where('status', 1)->orderBy('name', 'asc')->get();
+      return view('admin.pages.users.add', compact('page_title', 'page_description', 'breadcrumbs', 'isSuperAdmin', 'approvers'));
     } catch (\Exception $e) {
       dd($e);
       DB::rollback();
@@ -153,6 +209,16 @@ class UserController extends Controller
         }
         // dd(  $array );
         $response = User::UpdateOrCreate(['id' => $id], $array);
+
+        $isSuperAdmin = $this->isSuperAdmin(auth()->user()->load('role'));
+        if ($isSuperAdmin) {
+          $hierarchyError = $this->saveApprovalHierarchy($response->id, $request);
+          if ($hierarchyError) {
+            DB::rollback();
+            return redirect()->back()->withErrors([$hierarchyError])->withInput($request->all());
+          }
+        }
+
         DB::commit();
         return redirect('admin/users/list')->with('success', 'User details added successfully.');
       }
@@ -163,9 +229,11 @@ class UserController extends Controller
       $page_description = $pageSettings['page_description'];
       $breadcrumbs = $pageSettings['breadcrumbs'];
 
-      $details = User::where('id', $id)->first();
+      $details = User::with('approvalHierarchy')->where('id', $id)->first();
+      $isSuperAdmin = $this->isSuperAdmin(auth()->user()->load('role'));
+      $approvers = User::where('status', 1)->where('id', '!=', $id)->orderBy('name', 'asc')->get();
 
-      return view('admin.pages.users.edit', compact('page_title', 'page_description', 'breadcrumbs', 'details'));
+      return view('admin.pages.users.edit', compact('page_title', 'page_description', 'breadcrumbs', 'details', 'isSuperAdmin', 'approvers'));
     } catch (\Exception $e) {
       dd($e);
       DB::rollback();

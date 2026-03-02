@@ -38,7 +38,7 @@
         <?php if(config('layout.aside.self.display') === false): ?>
             <div class="header-logo">
                 <a href="<?php echo e(url('/')); ?>">
-                   
+
 
                     <img alt="<?php echo e(config('app.name')); ?>" src="<?php echo e(asset('media/logos/' . $kt_logo_image)); ?>" />
                 </a>
@@ -88,6 +88,16 @@
                             </svg>
                         </span>
                         <span class="menu-text">Pages</span>
+                    </a>
+                </li>
+
+                <li class="menu-item menu-item-submenu   <?php echo $__env->yieldContent('pagemaster'); ?>" aria-haspopup="true"
+                    data-menu-toggle="hover">
+                    <a href="<?php echo e(url('/admin/page/approval-requests')); ?>" class="menu-link menu-toggle">
+                        <span class="svg-icon menu-icon">
+                            <span class="flaticon2-check-mark"></span>
+                        </span>
+                        <span class="menu-text">Approval Requests</span>
                     </a>
                 </li>
                 <?php endif; ?>    <?php endif; ?>
@@ -144,7 +154,7 @@
                       <?php endif; ?>
                 <?php endif; ?>
 
-                <?php if(isset($systemRolesArray['city']) || isset($systemRolesArray['state']) || isset($systemRolesArray['locality'])): ?>  
+                <?php if(isset($systemRolesArray['city']) || isset($systemRolesArray['state']) || isset($systemRolesArray['locality'])): ?>
                   <?php if(($systemRolesArray['city'])!=0 || ($systemRolesArray['state'])!=0 || ($systemRolesArray['locality'])!=0): ?>
 
                 <li class="menu-item menu-item-submenu  <?php echo $__env->yieldContent('statemaster'); ?>  <?php echo $__env->yieldContent('citymaster'); ?> <?php echo $__env->yieldContent('localitymaster'); ?> "
@@ -176,7 +186,7 @@
                                 </a>
                             </li>
                             <?php endif; ?>
-                <?php if($systemRolesArray['city']!=0): ?> 
+                <?php if($systemRolesArray['city']!=0): ?>
                             <li class="menu-item <?php echo $__env->yieldContent('citymaster'); ?>" aria-haspopup="true" data-menu-toggle="hover">
                                 <a href="<?php echo e(url('/admin/city/list')); ?>" class="menu-link menu-toggle">
                                     <i class="menu-bullet menu-bullet-line"><span></span></i>
@@ -184,7 +194,7 @@
                                 </a>
                             </li>
                 <?php endif; ?>
-                <?php if($systemRolesArray['locality']!=0): ?> 
+                <?php if($systemRolesArray['locality']!=0): ?>
 
                             <li class="menu-item <?php echo $__env->yieldContent('localitymaster'); ?>" aria-haspopup="true" data-menu-toggle="hover">
                                 <a href="<?php echo e(url('/admin/locality/list')); ?>" class="menu-link menu-toggle">
@@ -402,7 +412,7 @@
                     <h4 class="menu-text">Settings</h4>
                     <i class="menu-icon ki ki-bold-more-hor icon-md"></i>
                 </li> -->
-                
+
                 <?php if(isset($systemRolesArray['settings'])): ?>
                      <?php if(($systemRolesArray['settings'])!=0): ?>
                 <li class="menu-item menu-item-submenu  <?php echo $__env->yieldContent('settings'); ?>" aria-haspopup="true"

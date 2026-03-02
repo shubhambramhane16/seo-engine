@@ -8,9 +8,13 @@ use App\Models\Rules;
 use App\Models\Pages;
 use App\Models\City;
 use App\Models\PagesHistory;
+use App\Models\PageApprovalRequest;
+use App\Models\PageApprovalRequestLog;
+use App\Models\UserApprovalHierarchy;
 use App\Models\Locality;
 use App\Models\Category;
 use App\Models\PathologyTest as Items;
+use App\Models\User;
 use DB;
 use Validator;
 use Image;
@@ -21,6 +25,52 @@ use Illuminate\Support\Str;
 
 class PageController extends Controller
 {
+    private function editableFields()
+    {
+        return [
+            'page_url',
+            'page_name',
+            'slug',
+            'seo_title',
+            'seo_description',
+            'seo_keywords',
+            'og_meta_title',
+            'og_meta_description',
+            'og_meta_image_url',
+            'twitter_card_title',
+            'twitter_card_description',
+            'schema_markup',
+            'header_content',
+            'center_content',
+            'footer_content',
+            'page_script',
+        ];
+    }
+
+    private function isSuperAdmin($user)
+    {
+        if (!$user || !$user->role) {
+            return false;
+        }
+
+        $roleTitle = strtolower(trim($user->role->role));
+        return $roleTitle === 'super admin' || $roleTitle === 'superadmin' || Str::contains($roleTitle, 'super');
+    }
+
+    private function approvalBadge($status)
+    {
+        if ($status === 'pending_manager' || $status === 'pending_admin') {
+            return '<span class="label label-lg font-weight-bold label-light-warning label-inline">Pending Approval</span>';
+        }
+        if ($status === 'approved') {
+            return '<span class="label label-lg font-weight-bold label-light-success label-inline">Approved</span>';
+        }
+        if ($status === 'rejected') {
+            return '<span class="label label-lg font-weight-bold label-light-danger label-inline">Rejected</span>';
+        }
+        return '<span class="label label-lg font-weight-bold label-secondary label-inline">Draft</span>';
+    }
+
     public function index(Request $request)
     {
         try {
@@ -40,7 +90,7 @@ class PageController extends Controller
                     $status = '2';
                 }
 
-                $query = Pages::with(['rule'])->when($status && $status != '-1', function ($q, $status) {
+                $query = Pages::with(['rule', 'latestApprovalRequest'])->when($status && $status != '-1', function ($q, $status) {
                     return $q->where('status', $status);
                 });
 
@@ -100,11 +150,14 @@ class PageController extends Controller
                         <i class="la la-trash"></i>
                     </a>';
 
+                    $approvalStatus = optional($page->latestApprovalRequest)->status;
+
                     $data[] = [
                         'counter' => $counter++,
                         'page_name' => $page->page_name ?? '',
                         'slug' => $page->slug ?? '',
                         'meta_title' => $page->seo_title ?? '',
+                        'approval_status' => $this->approvalBadge($approvalStatus),
                         'status' => $statusLink,
                         'action' => $actions,
                     ];
@@ -349,33 +402,105 @@ class PageController extends Controller
                     }
                     DB::beginTransaction();
 
-                    $array = [
-                        'page_url' => $request->page_url,
-                        'page_name' => $request->page_name,
-                        'slug' => $request->slug,
-                        'seo_title' => $request->seo_title,
-                        'seo_description' => $request->seo_description,
-                        'seo_keywords' => $request->seo_keywords,
-                        'og_meta_title' => $request->og_meta_title,
-                        'og_meta_description' => $request->og_meta_description,
-                        'og_meta_image_url' => $request->og_meta_image_url,
-                        'twitter_card_title' => $request->twitter_card_title,
-                        'twitter_card_description' => $request->twitter_card_description,
-                        'schema_markup' => $request->schema_markup,
-                        'header_content' => $request->header_content,
-                        'center_content' => $request->center_content,
-                        'footer_content' => $request->footer_content,
-                        'page_script' => $request->page_script,
-                        'updated_by' => auth()->user()->id,
-                    ];
+                    $currentUser = auth()->user()->load('role');
+                    $details = Pages::where('id', $id)->first();
+                    if (!$details) {
+                        DB::rollback();
+                        return redirect()->back()->withErrors(['Page details not found.']);
+                    }
 
-                    $response = Pages::updateOrCreate(['id' => $id], $array);
+                    $editableFields = $this->editableFields();
+                    $newPayload = [];
+                    foreach ($editableFields as $field) {
+                        $newPayload[$field] = $request->{$field};
+                    }
+
+                    $oldPayload = [];
+                    foreach ($editableFields as $field) {
+                        $oldPayload[$field] = $details->{$field};
+                    }
+
+                    $hierarchy = UserApprovalHierarchy::where('user_id', $currentUser->id)->first();
+                    $managerApproverId = null;
+                    $adminApproverId = null;
+
+                    if ($hierarchy) {
+                        $managerApproverId = $hierarchy->manager_id;
+                        $adminApproverId = $hierarchy->admin_id;
+                    }
+
+                    if (!$managerApproverId && !$adminApproverId) {
+                        DB::rollback();
+                        return redirect()->back()->withErrors(['Approval hierarchy is not configured for your user. Please contact Super Admin.'])->withInput($request->all());
+                    }
+
+                    $nextStatus = $managerApproverId ? 'pending_manager' : 'pending_admin';
+                    $currentApproverId = $managerApproverId ?: $adminApproverId;
+
+                    $existingPending = PageApprovalRequest::where('page_id', $id)
+                        ->whereIn('status', ['pending_manager', 'pending_admin'])
+                        ->orderBy('id', 'desc')
+                        ->first();
+
+                    if ($existingPending && $existingPending->requested_by != $currentUser->id && !$this->isSuperAdmin($currentUser)) {
+                        DB::rollback();
+                        return redirect()->back()->withErrors(['A pending approval request already exists for this page.'])->withInput($request->all());
+                    }
+
+                    if ($existingPending) {
+                        $fromStatus = $existingPending->status;
+                        $existingPending->update([
+                            'requested_by' => $currentUser->id,
+                            'manager_approver_id' => $managerApproverId,
+                            'admin_approver_id' => $adminApproverId,
+                            'current_approver_id' => $currentApproverId,
+                            'old_payload' => $oldPayload,
+                            'new_payload' => $newPayload,
+                            'status' => $nextStatus,
+                            'approver_comments' => null,
+                            'approved_by' => null,
+                            'rejected_by' => null,
+                            'overridden_by' => null,
+                            'reviewed_at' => null,
+                            'published_at' => null,
+                        ]);
+
+                        PageApprovalRequestLog::create([
+                            'request_id' => $existingPending->id,
+                            'action_by' => $currentUser->id,
+                            'action' => 'updated_request',
+                            'from_status' => $fromStatus,
+                            'to_status' => $nextStatus,
+                            'comments' => 'Page update request refreshed by editor.',
+                        ]);
+                    } else {
+                        $approvalRequest = PageApprovalRequest::create([
+                            'page_id' => $details->id,
+                            'requested_by' => $currentUser->id,
+                            'manager_approver_id' => $managerApproverId,
+                            'admin_approver_id' => $adminApproverId,
+                            'current_approver_id' => $currentApproverId,
+                            'old_payload' => $oldPayload,
+                            'new_payload' => $newPayload,
+                            'status' => $nextStatus,
+                        ]);
+
+                        PageApprovalRequestLog::create([
+                            'request_id' => $approvalRequest->id,
+                            'action_by' => $currentUser->id,
+                            'action' => 'requested',
+                            'from_status' => null,
+                            'to_status' => $nextStatus,
+                            'comments' => 'Page update submitted for approval.',
+                        ]);
+                    }
+
                     DB::commit();
-                    return redirect('admin/page/list')->with('success', 'Page updated successfully.');
+                    return redirect('admin/page/list')->with('success', 'Page update saved as Pending Approval.');
                 }
                 $page_title = 'Page Management';
                 $page_description = 'Edit Page';
-                $details = Pages::where('id', $id)->first();
+                $details = Pages::with(['latestApprovalRequest'])->where('id', $id)->first();
                 if ($details) {
                     $pageSettings = $this->pageSetting('edit', ['slug' => $details->slug]);
 

@@ -56,5 +56,10 @@ class Pages extends Model
         return $this->hasOne('App\Models\User', 'id','created_by');
     }
 
+    public function latestApprovalRequest()
+    {
+        return $this->hasOne(PageApprovalRequest::class, 'page_id', 'id')->latestOfMany();
+    }
+
 
 }

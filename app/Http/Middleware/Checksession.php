@@ -28,7 +28,7 @@ class Checksession
                 return $next($request);
             } elseif ($permission == 4) {
                 if (isset($uriSegments[2])) {
-                    if ($uriSegments[2] == 'list' || $uriSegments[2] == 'add' || $uriSegments[2] == 'edit' || $uriSegments[1] == 'dashboard') {
+                    if ($uriSegments[2] == 'list' || $uriSegments[2] == 'add' || $uriSegments[2] == 'edit' || $uriSegments[2] == 'approval-requests' || $uriSegments[1] == 'dashboard') {
                         return $next($request);
                     } else {
                         return redirect()->back()->withErrors([$message]);
@@ -38,7 +38,7 @@ class Checksession
                 }
             } elseif ($permission == 3) {
                 if (isset($uriSegments[2])) {
-                    if ($uriSegments[2] == 'list' || $uriSegments[2] == 'add' || $uriSegments[1] == 'dashboard') {
+                    if ($uriSegments[2] == 'list' || $uriSegments[2] == 'add' || $uriSegments[2] == 'approval-requests' || $uriSegments[1] == 'dashboard') {
                         return $next($request);
                     } else {
                         return redirect()->back()->withErrors([$message]);
@@ -48,7 +48,7 @@ class Checksession
                 }
             } elseif ($permission == 2) {
                 if (isset($uriSegments[2])) {
-                    if ($uriSegments[2] == 'list' || $uriSegments[2] == 'edit' || $uriSegments[1] == 'dashboard') {
+                    if ($uriSegments[2] == 'list' || $uriSegments[2] == 'edit' || $uriSegments[2] == 'approval-requests' || $uriSegments[1] == 'dashboard') {
                         return $next($request);
                     } else {
                         return redirect()->back()->withErrors([$message]);
@@ -58,7 +58,7 @@ class Checksession
                 }
             } elseif ($permission == 1) {
                 if (isset($uriSegments[2])) {
-                    if ($uriSegments[2] == 'list' || $uriSegments[1] == 'dashboard') {
+                    if ($uriSegments[2] == 'list' || $uriSegments[2] == 'approval-requests' || $uriSegments[1] == 'dashboard') {
                         return $next($request);
                     } else {
                         return redirect()->back()->withErrors([$message]);

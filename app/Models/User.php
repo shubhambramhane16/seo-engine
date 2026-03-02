@@ -25,6 +25,8 @@ class User extends Authenticatable
         'last_login',
         'last_login_ip',
         'status',
+        'created_by',
+        'updated_by',
     ];
 
     /**
@@ -52,5 +54,10 @@ class User extends Authenticatable
     public function userDetails()
     {
         return $this->hasOne('App\Models\UserDetails', 'user_id', 'id');
+    }
+
+    public function approvalHierarchy()
+    {
+        return $this->hasOne(UserApprovalHierarchy::class, 'user_id', 'id');
     }
 }

@@ -9,7 +9,7 @@
                 <!-- <div class="text-muted pt-2 font-size-sm">Datatable initialized from HTML table</div> -->
             </h3>
         </div>
-        <div class="card-toolbar"> 
+        <div class="card-toolbar">
             <!--begin::Button-->
             <a href="{{url('/admin/users/add-user')}}" class="btn btn-primary font-weight-bolder">
                 <i class="la la-plus"></i>Add User</a>
@@ -49,6 +49,10 @@
                     <th>Email/User Name</th>
                     <th>Mobile</th>
                     <th>User Role</th>
+                    @if(!empty($isSuperAdmin) && $isSuperAdmin)
+                    <th>Reporting Manager</th>
+                    <th>Final Approver</th>
+                    @endif
                     <th class="custom_status">Status</th>
                     <th class="custom_action">Action</th>
                 </tr>
@@ -61,8 +65,12 @@
                     <td>{{$loop->iteration}}</td>
                     <td>{{$value->name }}</td>
                     <td>{{$value->email }}</td>
-                    <td>{{$value->mobile }}</td> 
-                    <td>{{$value->role->role }}</td> 
+                    <td>{{$value->mobile }}</td>
+                    <td>{{$value->role->role }}</td>
+                    @if(!empty($isSuperAdmin) && $isSuperAdmin)
+                    <td>{{optional(optional($value->approvalHierarchy)->manager)->name ?? '-'}}</td>
+                    <td>{{optional(optional($value->approvalHierarchy)->admin)->name ?? '-'}}</td>
+                    @endif
                     <td>
                         <a href="javascript:void(0)" data-url="{{url('admin/users/update-status/'.$value->id.'/'.$value->status)}}" onclick="changeStatus(this)"> <span class="label label-lg font-weight-bold label-light-{{($value->status == 1) ? 'success' : 'danger'}} label-inline">{{($value->status == 1) ? 'Active' : 'InActive'}}</span></a>
                     </td>
