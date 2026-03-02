@@ -35,6 +35,15 @@
                 </div>
                 @endif
 
+                @if(!empty($prefillRejectedRequest))
+                <div class="col-md-12 mb-5">
+                    <div class="alert alert-light-info">
+                        You are editing values from your rejected request to reapply for approval.
+                        <br><a href="{{url('/admin/page/approval-requests/'.$prefillRejectedRequest->id)}}">View rejected request details</a>
+                    </div>
+                </div>
+                @endif
+
                 <form method="POST" action="" class="w-100">
                     {{ csrf_field() }}
                     <div class="col-lg-9 col-xl-12">

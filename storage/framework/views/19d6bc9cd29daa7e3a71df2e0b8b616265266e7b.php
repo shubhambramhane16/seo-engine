@@ -50,6 +50,11 @@
                         <a href="<?php echo e(url('/admin/page/approval-requests/'.$item->id)); ?>" class="btn btn-sm btn-clean btn-icon" title="Review Request" data-toggle="tooltip">
                             <i class="la la-search"></i>
                         </a>
+                        <?php if($item->status == 'rejected' && $item->requested_by == auth()->id() && $item->page_id): ?>
+                        <a href="<?php echo e(url('/admin/page/edit/'.$item->page_id.'?approval_request_id='.$item->id)); ?>" class="btn btn-sm btn-clean btn-icon" title="Edit & Reapply" data-toggle="tooltip">
+                            <i class="la la-edit"></i>
+                        </a>
+                        <?php endif; ?>
                     </td>
                 </tr>
                 <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>

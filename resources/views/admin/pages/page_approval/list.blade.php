@@ -52,6 +52,11 @@
                         <a href="{{url('/admin/page/approval-requests/'.$item->id)}}" class="btn btn-sm btn-clean btn-icon" title="Review Request" data-toggle="tooltip">
                             <i class="la la-search"></i>
                         </a>
+                        @if($item->status == 'rejected' && $item->requested_by == auth()->id() && $item->page_id)
+                        <a href="{{url('/admin/page/edit/'.$item->page_id.'?approval_request_id='.$item->id)}}" class="btn btn-sm btn-clean btn-icon" title="Edit & Reapply" data-toggle="tooltip">
+                            <i class="la la-edit"></i>
+                        </a>
+                        @endif
                     </td>
                 </tr>
                 @endforeach

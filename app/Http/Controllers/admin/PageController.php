@@ -502,12 +502,36 @@ class PageController extends Controller
                 $page_description = 'Edit Page';
                 $details = Pages::with(['latestApprovalRequest'])->where('id', $id)->first();
                 if ($details) {
+                    $currentUser = auth()->user()->load('role');
+                    $prefillRejectedRequest = null;
+
+                    $approvalRequestId = $request->get('approval_request_id');
+                    if ($approvalRequestId) {
+                        $rejectedRequest = PageApprovalRequest::where('id', $approvalRequestId)
+                            ->where('page_id', $details->id)
+                            ->where('status', 'rejected')
+                            ->first();
+
+                        if ($rejectedRequest && ($rejectedRequest->requested_by == $currentUser->id || $this->isSuperAdmin($currentUser))) {
+                            $editableFields = $this->editableFields();
+                            $rejectedPayload = $rejectedRequest->new_payload ?: [];
+
+                            foreach ($editableFields as $field) {
+                                if (array_key_exists($field, $rejectedPayload)) {
+                                    $details->{$field} = $rejectedPayload[$field];
+                                }
+                            }
+
+                            $prefillRejectedRequest = $rejectedRequest;
+                        }
+                    }
+
                     $pageSettings = $this->pageSetting('edit', ['slug' => $details->slug]);
 
                     $page_title =  $pageSettings['page_title'];
                     $page_description = $pageSettings['page_description'];
                     $breadcrumbs = $pageSettings['breadcrumbs'];
-                    return view('admin.pages.page.edit', compact('page_title', 'page_description', 'breadcrumbs', 'details'));
+                    return view('admin.pages.page.edit', compact('page_title', 'page_description', 'breadcrumbs', 'details', 'prefillRejectedRequest'));
                 } else {
                     return redirect()->back()->withErrors(['Category details not found.']);
                 }

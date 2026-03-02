@@ -23,6 +23,13 @@
             @if($requestDetails->approver_comments)
             <div><strong>Latest Comments:</strong> {{$requestDetails->approver_comments}}</div>
             @endif
+            @if($requestDetails->status == 'rejected' && $requestDetails->requested_by == auth()->id() && $requestDetails->page_id)
+            <div class="mt-3">
+                <a href="{{url('/admin/page/edit/'.$requestDetails->page_id.'?approval_request_id='.$requestDetails->id)}}" class="btn btn-primary btn-sm">
+                    <i class="la la-edit"></i> Edit & Reapply
+                </a>
+            </div>
+            @endif
         </div>
 
         <div class="table-responsive">

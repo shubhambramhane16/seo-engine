@@ -21,6 +21,13 @@
             <?php if($requestDetails->approver_comments): ?>
             <div><strong>Latest Comments:</strong> <?php echo e($requestDetails->approver_comments); ?></div>
             <?php endif; ?>
+            <?php if($requestDetails->status == 'rejected' && $requestDetails->requested_by == auth()->id() && $requestDetails->page_id): ?>
+            <div class="mt-3">
+                <a href="<?php echo e(url('/admin/page/edit/'.$requestDetails->page_id.'?approval_request_id='.$requestDetails->id)); ?>" class="btn btn-primary btn-sm">
+                    <i class="la la-edit"></i> Edit & Reapply
+                </a>
+            </div>
+            <?php endif; ?>
         </div>
 
         <div class="table-responsive">
