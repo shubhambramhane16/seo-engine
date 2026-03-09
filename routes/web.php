@@ -205,6 +205,7 @@ Route::group(['prefix' => 'admin', 'namespace' => 'admin', 'middleware' => 'Chec
     Route::get('/users/list', 'UserController@index');
     Route::any('/users/add-user', 'UserController@addUser');
     Route::any('/users/edit/{id}', 'UserController@editUser');
+    Route::post('/users/change-password/{id}', 'UserController@changePassword');
     Route::any('/users/delete/{id}', 'UserController@delete');
     Route::any('/users/update-status/{id}/{status}', 'UserController@updateStatus');
 

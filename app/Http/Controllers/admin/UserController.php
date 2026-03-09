@@ -186,11 +186,14 @@ class UserController extends Controller
           'email' => 'required',
           'mobile' => 'required',
           'role_id' => 'required',
+          'password' => 'nullable|string|min:6|confirmed',
         ], [
           'name.required' => 'User name is required.',
           'email.required' => 'Email is required.',
           'mobile.required' => 'Mobile no is required.',
           'role_id.required' => 'Select user role.',
+          'password.min' => 'Password must be at least 6 characters.',
+          'password.confirmed' => 'Password confirmation does not match.',
         ]);
         if ($validator->fails()) {
           return redirect()->back()->withErrors($validator)->withInput($request->all());
@@ -205,6 +208,11 @@ class UserController extends Controller
           'role_id' => $request->role_id
 
         ];
+
+        if ($request->filled('password')) {
+          $array['password'] = Hash::make($request->password);
+        }
+
         $UserEmail = User::where('email', $array['email'])->where('id', '!=', $id)->exists();
         if ($UserEmail) {
           return redirect()->back()->withErrors(['User Email already exist.'])->withInput($request->all());
@@ -246,6 +254,36 @@ class UserController extends Controller
 
 
     return view('admin.pages.users.edit', compact('page_title', 'page_description', 'breadcrumbs'));
+  }
+
+  public function changePassword(Request $request, $id)
+  {
+    try {
+      $validator = Validator::make($request->all(), [
+        'password' => 'required|string|min:6|confirmed',
+      ], [
+        'password.required' => 'Password is required.',
+        'password.min' => 'Password must be at least 6 characters.',
+        'password.confirmed' => 'Password confirmation does not match.',
+      ]);
+
+      if ($validator->fails()) {
+        return redirect()->back()->withErrors($validator)->withInput($request->all());
+      }
+
+      $user = User::find($id);
+      if (!$user) {
+        return redirect()->back()->with('error', 'User details not found.');
+      }
+
+      $user->password = Hash::make($request->password);
+      $user->updated_by = auth()->user()->id;
+      $user->save();
+
+      return redirect()->back()->with('success', 'Password updated successfully.');
+    } catch (\Exception $e) {
+      return redirect()->back()->with('error', $e->getMessage());
+    }
   }
 
 
