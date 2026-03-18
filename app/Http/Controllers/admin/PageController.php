@@ -448,22 +448,78 @@ class PageController extends Controller
                         $adminApproverId = $hierarchy->admin_id;
                     }
 
-                    if (!$managerApproverId && !$adminApproverId) {
-                        DB::rollback();
-                        return redirect()->back()->withErrors(['Approval hierarchy is not configured for your user. Please contact Super Admin.'])->withInput($request->all());
-                    }
-
-                    $nextStatus = $managerApproverId ? 'pending_manager' : 'pending_admin';
-                    $currentApproverId = $managerApproverId ?: $adminApproverId;
+                    $autoApproveDirectly = !$managerApproverId && !$adminApproverId;
+                    $nextStatus = $autoApproveDirectly ? 'approved' : ($managerApproverId ? 'pending_manager' : 'pending_admin');
+                    $currentApproverId = $autoApproveDirectly ? null : ($managerApproverId ?: $adminApproverId);
 
                     $existingPending = PageApprovalRequest::where('page_id', $id)
                         ->whereIn('status', ['pending_manager', 'pending_admin'])
                         ->orderBy('id', 'desc')
                         ->first();
 
-                    if ($existingPending && $existingPending->requested_by != $currentUser->id && !$this->isSuperAdmin($currentUser)) {
+                    if (!$autoApproveDirectly && $existingPending && $existingPending->requested_by != $currentUser->id && !$this->isSuperAdmin($currentUser)) {
                         DB::rollback();
                         return redirect()->back()->withErrors(['A pending approval request already exists for this page.'])->withInput($request->all());
+                    }
+
+                    if ($autoApproveDirectly) {
+                        $details->update(array_merge($newPayload, [
+                            'updated_by' => $currentUser->id,
+                        ]));
+
+                        if ($existingPending) {
+                            $fromStatus = $existingPending->status;
+                            $existingPending->update([
+                                'requested_by' => $currentUser->id,
+                                'manager_approver_id' => null,
+                                'admin_approver_id' => null,
+                                'current_approver_id' => null,
+                                'old_payload' => $oldPayload,
+                                'new_payload' => $newPayload,
+                                'status' => 'approved',
+                                'approver_comments' => null,
+                                'approved_by' => $currentUser->id,
+                                'rejected_by' => null,
+                                'overridden_by' => null,
+                                'reviewed_at' => now(),
+                                'published_at' => now(),
+                            ]);
+
+                            PageApprovalRequestLog::create([
+                                'request_id' => $existingPending->id,
+                                'action_by' => $currentUser->id,
+                                'action' => 'auto_approved',
+                                'from_status' => $fromStatus,
+                                'to_status' => 'approved',
+                                'comments' => 'Auto-approved because no reporting manager and final approver are configured.',
+                            ]);
+                        } else {
+                            $approvalRequest = PageApprovalRequest::create([
+                                'page_id' => $details->id,
+                                'requested_by' => $currentUser->id,
+                                'manager_approver_id' => null,
+                                'admin_approver_id' => null,
+                                'current_approver_id' => null,
+                                'old_payload' => $oldPayload,
+                                'new_payload' => $newPayload,
+                                'status' => 'approved',
+                                'approved_by' => $currentUser->id,
+                                'reviewed_at' => now(),
+                                'published_at' => now(),
+                            ]);
+
+                            PageApprovalRequestLog::create([
+                                'request_id' => $approvalRequest->id,
+                                'action_by' => $currentUser->id,
+                                'action' => 'auto_approved',
+                                'from_status' => null,
+                                'to_status' => 'approved',
+                                'comments' => 'Auto-approved because no reporting manager and final approver are configured.',
+                            ]);
+                        }
+
+                        DB::commit();
+                        return redirect('admin/page/list')->with('success', 'Page update auto-approved and published successfully.');
                     }
 
                     if ($existingPending) {
